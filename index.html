@@ -1,0 +1,1507 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tiny Book Press</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* Layout: the print sheet lies on a green cutting mat (left); the page you are editing sits beside it (right); folding help below. */
+:root {
+  --bg: #eef2f0;
+  --surface: #ffffff;
+  --ink: #1c2521;
+  --muted: #5b6a64;
+  --line: #d3ddd8;
+  --accent: #e4572e;      /* the orange of a craft-knife handle */
+  --accent-ink: #ffffff;
+  --mat: #2b5246;
+  --mat-grid: rgba(255,255,255,.09);
+  --mat-grid-major: rgba(255,255,255,.18);
+  --soft: #e3ebe7;
+  --font-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111715; --surface: #1a2320; --ink: #e5ece9; --muted: #9caca5; --line: #2d3a35;
+    --accent: #f0714b; --accent-ink: #1a0d08; --mat: #1d3a31; --soft: #23302b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111715; --surface: #1a2320; --ink: #e5ece9; --muted: #9caca5; --line: #2d3a35;
+  --accent: #f0714b; --accent-ink: #1a0d08; --mat: #1d3a31; --soft: #23302b;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--font-body);
+}
+/* One screen on a computer or tablet: no page scrolling. Phones stack and scroll. */
+.app {
+  max-width: 1600px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+h1 { font: 600 28px/1.1 var(--font-display); margin: 0; letter-spacing: -.01em; }
+h1 small { font: 600 14px/1.4 var(--font-body); color: var(--muted); letter-spacing: 0; margin-left: 10px; }
+@media (max-width: 700px) { h1 small { display: block; margin: 4px 0 0; } }
+h2 { font: 600 20px/1.2 var(--font-display); margin: 0; text-wrap: balance; }
+h3 { font: 700 12px/1.2 var(--font-body); margin: 0; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 7px 13px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+button, .btn {
+  font: 700 14px/1 var(--font-body); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; min-height: 38px;
+}
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+button.primary:hover { filter: brightness(1.06); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+label.check { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14px; cursor: pointer; padding: 0 4px; }
+label.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; }
+@media (max-width: 899px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.mat {
+  background-color: var(--mat);
+  background-image:
+    linear-gradient(var(--mat-grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mat-grid-major) 1px, transparent 1px),
+    linear-gradient(var(--mat-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mat-grid) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  border-radius: 14px; padding: clamp(12px, 2vw, 22px);
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.sheet-wrap { display: grid; place-items: center; min-width: 0; }
+.mat-label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; color: rgba(255,255,255,.78); font: 500 12px/1.3 var(--font-mono); }
+#sheet { width: 100%; max-width: 100%; display: block; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.35); cursor: pointer; border-radius: 2px; }
+
+.editor { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tabs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.tabs button { padding: 6px 0; justify-content: center; min-height: 40px; font: 600 16px/1 var(--font-display); border-radius: 8px; flex-direction: column; gap: 2px; }
+.tabs button span { font: 700 9px/1 var(--font-body); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.tabs button[aria-selected="true"] span { color: inherit; }
+.field { display: grid; gap: 6px; }
+.field label { font-weight: 700; font-size: 13px; }
+input[type=text], input[type=password], textarea {
+  font: 600 15px/1.4 var(--font-body); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%;
+}
+textarea { resize: vertical; min-height: 64px; }
+.label-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.art-box {
+  aspect-ratio: 5 / 4; max-width: 100%; background: #fff; border: 1px dashed var(--line); border-radius: 10px;
+  display: grid; place-items: center; overflow: hidden; position: relative;
+}
+.art-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.field .seg { justify-self: start; }
+.art-box .empty { color: #6d7a74; font-weight: 700; font-size: 14px; text-align: center; padding: 16px; }
+.art-box.drop { outline: 3px solid var(--accent); }
+.art-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.art-actions button { justify-content: center; flex-direction: column; gap: 5px; padding: 8px 4px; min-height: 60px; font-size: 12.5px; line-height: 1.15; text-align: center; }
+.art-actions svg { width: 22px; height: 22px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.warn { background: var(--soft); border-left: 4px solid var(--accent); padding: 10px 12px; border-radius: 6px; font-size: 14px; }
+
+.fold-help { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 20px; align-items: center; }
+@media (max-width: 640px) { .fold-help { grid-template-columns: minmax(0, 1fr); } }
+.fold-help ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+.fold-help svg { width: 100%; height: auto; }
+.picture { display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 900px) and (min-height: 560px) {
+  html, body { height: 100%; }
+  .app { height: 100%; }
+  .main { flex: 1; min-height: 0; }
+  .mat, .editor { min-height: 0; }
+  .sheet-wrap { flex: 1; min-height: 0; }
+  .editor .picture { flex: 1; min-height: 0; }
+  .editor .art-box { flex: 1; min-height: 80px; aspect-ratio: auto !important; }
+  .editor textarea { resize: none; }
+}
+.mono { font-family: var(--font-mono); font-size: 13px; }
+
+/* modals */
+.modal { position: fixed; inset: 0; background: rgba(10,16,14,.62); display: grid; place-items: center; z-index: 50;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.dialog { background: var(--surface); color: var(--ink); border-radius: 16px; padding: 18px; width: min(560px, 100%); max-height: 100%; overflow: auto; display: grid; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.dialog.wide { width: min(1100px, 100%); }
+.dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.x { border: 0; background: transparent; font-size: 24px; padding: 4px 10px; min-height: 0; }
+
+.draw-layout { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
+@media (max-width: 640px) { .draw-layout { grid-template-columns: minmax(0, 1fr); } .tools { flex-direction: row !important; flex-wrap: wrap; } }
+.tools { display: flex; flex-direction: column; gap: 6px; }
+.tools button { justify-content: center; padding: 6px; min-height: 42px; font-size: 12px; flex-direction: column; gap: 3px; }
+.tools button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: transparent; }
+.tools svg { width: 20px; height: 20px; }
+.canvas-holder { background: #fff; border-radius: 8px; border: 1px solid var(--line); overflow: hidden; touch-action: none; max-width: 100%; }
+#drawCanvas { width: 100%; height: auto; display: block; touch-action: none; cursor: crosshair; }
+.canvas-holder { position: relative; justify-self: center; }
+#stampLayer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
+#stampLayer.on { pointer-events: auto; cursor: move; }
+.draw-main { display: grid; gap: 10px; min-width: 0; }
+.stampbar { display: grid; gap: 8px; background: var(--soft); border-radius: 10px; padding: 10px; }
+.stampbar input { flex: 1; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips:empty { display: none; }
+.chips button { width: 48px; height: 48px; min-height: 0; padding: 4px; background: #fff; border-radius: 8px; justify-content: center; }
+.chips button img { width: 100%; height: 100%; object-fit: contain; }
+.chips button[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 1px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.swatch { width: 32px; height: 32px; min-height: 0; border-radius: 50%; padding: 0; border: 2px solid var(--line); }
+.swatch[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+.sizes button { width: 42px; justify-content: center; padding: 0; }
+.sizes button i { display: block; background: currentColor; border-radius: 50%; }
+.sizes button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.ai-preview { aspect-ratio: 5 / 4; background: #fff; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; max-width: 100%; }
+.ai-preview img { width: 100%; height: 100%; object-fit: contain; }
+.ai-status { color: #5b6a64; font-weight: 700; font-size: 14px; text-align: center; padding: 18px; }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes s { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.fallback-img { width: 100%; border: 1px solid var(--line); background: #fff; }
+
+#toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px); }
+</style>
+
+<div class="app">
+  <header>
+    <h1>Tiny Book Press<small>One sheet of paper, one cut, eight little pages.</small></h1>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Paper size">
+        <button id="paperA4" type="button">A4</button>
+        <button id="paperLetter" type="button">US Letter</button>
+      </div>
+      <label class="check"><input type="checkbox" id="optGuides"> Fold guides</label>
+      <label class="check"><input type="checkbox" id="optNumbers"> Page numbers</label>
+      <label class="check"><input type="checkbox" id="optGray"> Black &amp; white</label>
+      <button id="btnFold" type="button">How to fold</button>
+      <button id="btnClaude" type="button">AI settings</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="mat" aria-label="Print sheet preview">
+      <div class="mat-label"><span id="sheetLabel">A4 · 297 × 210 mm · landscape</span><span>Click a page to edit it, or drop a picture on it</span></div>
+      <div class="sheet-wrap" id="sheetWrap">
+        <canvas id="sheet" aria-label="The printable sheet. The top row prints upside down so the pages face the right way once folded."></canvas>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnPdf" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>
+          Download PDF to print</button>
+        <button id="btnPng" type="button">Download picture (PNG)</button>
+        <span style="flex:1"></span>
+        <button id="btnExample" type="button">Load the example</button>
+        <button id="btnNew" type="button">Start a new book</button>
+      </div>
+      <p id="storeWarn" class="warn" hidden>This book is too big to remember in this browser. Download the PDF before you close the page.</p>
+    </section>
+
+    <section class="editor" aria-label="Page editor">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <h2 id="edHead">Page 1</h2>
+      <div class="field">
+        <label for="edTitle">Heading</label>
+        <input type="text" id="edTitle" maxlength="80" placeholder="Hello, dot.">
+      </div>
+      <div class="field">
+        <div class="label-row">
+          <label for="edText">Words</label>
+          <div class="seg" role="group" aria-label="Line up the words">
+            <button id="alCenter" type="button">Centered</button>
+            <button id="alLeft" type="button">Left</button>
+          </div>
+        </div>
+        <textarea id="edText" rows="3" maxlength="900" placeholder="Every adventure starts somewhere."></textarea>
+      </div>
+      <div class="picture">
+        <h3>Picture</h3>
+        <div class="art-box" id="artBox"><div class="empty" id="artEmpty">No picture yet.<br>Import one, ask for one, or draw it.</div><img id="artImg" alt="" hidden></div>
+        <div class="art-actions">
+          <button id="btnImport" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>Import</button>
+          <button id="btnAsk" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg><span id="askLabel">Ask Claude</span></button>
+          <button id="btnDraw" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg><span id="drawLabel">Draw</span></button>
+          <button id="btnRemove" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Remove</button>
+        </div>
+        <p class="note" id="aiNote"></p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- How to fold -->
+<div class="modal" id="foldModal" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="foldTitle" style="width:min(760px,100%)">
+    <div class="dialog-head"><h2 id="foldTitle">Fold it into a book</h2><button class="x" id="foldClose" type="button" aria-label="Close">×</button></div>
+    <div class="fold-help">
+    <svg viewBox="0 0 300 212" role="img" aria-label="The sheet with dashed fold lines and one solid cut line in the middle">
+      <rect x="1" y="1" width="298" height="210" fill="#fff" stroke="#8a9a93" stroke-width="2"/>
+      <g stroke="#8a9a93" stroke-width="1.5" stroke-dasharray="5 4">
+        <line x1="75" y1="1" x2="75" y2="211"/><line x1="150" y1="1" x2="150" y2="211"/><line x1="225" y1="1" x2="225" y2="211"/>
+        <line x1="1" y1="106" x2="75" y2="106"/><line x1="225" y1="106" x2="299" y2="106"/>
+      </g>
+      <line x1="75" y1="106" x2="225" y2="106" stroke="#e4572e" stroke-width="3.5"/>
+      <g font-family="Fredoka, sans-serif" font-size="22" font-weight="600" text-anchor="middle" fill="#9aa8a2">
+        <text transform="translate(37.5 62) rotate(180)">5</text><text transform="translate(112.5 62) rotate(180)">4</text>
+        <text transform="translate(187.5 62) rotate(180)">3</text><text transform="translate(262.5 62) rotate(180)">2</text>
+        <text x="37.5" y="168">6</text><text x="112.5" y="168">7</text><text x="187.5" y="168">8</text><text x="262.5" y="168" fill="#e4572e">1</text>
+      </g>
+    </svg>
+      <ol>
+        <li>Print landscape, single-sided, at <b>Actual size / 100%</b>.</li>
+        <li>Crease along every dashed line, both ways.</li>
+        <li>Cut only the solid line in the middle.</li>
+        <li>Fold the sheet in half the long way, with the printing outside.</li>
+        <li>Push the two ends toward each other. The slit opens into a cross.</li>
+        <li>Flatten it into a book with page 1 in front and page 8 at the back.</li>
+      </ol>
+    </div>
+    <div class="row">
+      <button id="btnSteps" type="button">Put these steps on page 8</button>
+      <span class="note" id="finishedNote"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Draw -->
+<div class="modal" id="drawModal" hidden>
+  <div class="dialog wide" id="drawDialog" role="dialog" aria-modal="true" aria-labelledby="drawTitle">
+    <div class="dialog-head"><h2 id="drawTitle">Draw page 1</h2><button class="x" id="drawClose" type="button" aria-label="Close">×</button></div>
+    <div class="row">
+      <label class="check"><input type="checkbox" id="drawColor"> Colors</label>
+      <div class="swatches" id="swatches"></div>
+      <span style="flex:1"></span>
+      <div class="row sizes" id="sizes"></div>
+    </div>
+    <div class="draw-layout">
+      <div class="tools" id="tools">
+        <button type="button" data-tool="pen" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>Pen</button>
+        <button type="button" data-tool="fill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11l7-7 7 7-7 7z"/><path d="M20 15c1 1.5 1.5 2.5 1.5 3.2a1.5 1.5 0 0 1-3 0c0-.7.5-1.7 1.5-3.2z"/></svg>Fill</button>
+        <button type="button" data-tool="stamp" id="toolStamp" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v5l-1 4h5a2 2 0 0 1 2 2v3H3v-3a2 2 0 0 1 2-2h5L9 8z"/><path d="M4 21h16"/></svg>Stamp</button>
+        <button type="button" data-tool="eraser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4l5 5-10 10H6l-3-3z"/><path d="M9 21h12"/></svg>Eraser</button>
+        <button type="button" id="drawUndo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo</button>
+        <button type="button" id="drawClear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Clear</button>
+      </div>
+      <div class="draw-main">
+        <div class="stampbar" id="stampBar" hidden>
+          <div class="row">
+            <input type="text" id="stampWhat" maxlength="60" placeholder="A heart, a star, a little cat…" aria-label="What stamp should the AI make?">
+            <button class="primary" id="stampMake" type="button">Make stamp</button>
+          </div>
+          <div class="chips" id="stampChips"></div>
+          <div class="row">
+            <span class="note" id="stampStatus">Ask for a stamp, then press it onto your drawing as many times as you like.</span>
+            <span style="flex:1"></span>
+            <button id="stampDrop" type="button" hidden>Put it away</button>
+            <button class="primary" id="stampApply" type="button" hidden>Stamp it</button>
+          </div>
+        </div>
+        <div class="canvas-holder" id="canvasHolder"><canvas id="drawCanvas" width="1000" height="800" aria-label="Drawing area"></canvas><canvas id="stampLayer" width="1000" height="800" aria-hidden="true"></canvas></div>
+      </div>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button id="drawCancel" type="button">Cancel</button>
+      <button class="primary" id="drawSave" type="button">Put it on the page</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ask Claude -->
+<div class="modal" id="aiModal" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+    <div class="dialog-head"><h2 id="aiTitle">Ask Claude to draw page 1</h2><button class="x" id="aiClose" type="button" aria-label="Close">×</button></div>
+    <div class="field">
+      <label for="aiPrompt">What should the picture show?</label>
+      <textarea id="aiPrompt" maxlength="600" placeholder="A small house with a roof, a door and two windows"></textarea>
+    </div>
+    <div class="row">
+      <label class="check"><input type="checkbox" id="aiColor"> In color</label>
+      <span class="note" id="aiStyleNote">Off: black outlines you can color in by hand.</span>
+    </div>
+    <div class="ai-preview" id="aiPreview"><div class="ai-status" id="aiStatus">Describe a picture, then press Draw it.</div><img id="aiImg" alt="Claude's drawing" hidden></div>
+    <div class="row" style="justify-content:flex-end">
+      <button id="aiStop" type="button" hidden>Stop</button>
+      <button id="aiGo" class="primary" type="button">Draw it</button>
+      <button id="aiUse" class="primary" type="button" hidden>Put it on the page</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm / fallback -->
+<div class="modal" id="askModal" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <h2 id="askTitle">Start a new book?</h2>
+    <p id="askBody" style="margin:0"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button id="askNo" type="button">Keep this book</button>
+      <button id="askAlt" type="button" hidden>Throw it away</button>
+      <button id="askYes" class="primary" type="button">Start over</button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="fbModal" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="fbTitle">
+    <div class="dialog-head"><h2 id="fbTitle">Save your sheet</h2><button class="x" id="fbClose" type="button" aria-label="Close">×</button></div>
+    <p style="margin:0">Downloads are not available here. Right-click the sheet (or long-press it on a phone) and choose “Save image”, then print it landscape at 100%.</p>
+    <img id="fbImg" class="fallback-img" alt="Your printable sheet">
+  </div>
+</div>
+<div class="modal" id="settingsModal" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="dialog-head"><h2 id="setTitle">AI settings</h2><button class="x" id="setClose" type="button" aria-label="Close">×</button></div>
+    <p class="warn" id="setStatus" style="margin:0"></p>
+    <div class="field">
+      <label>Which AI makes pictures and stamps?</label>
+      <div class="seg" role="group" aria-label="AI" id="setProviders">
+        <button type="button" data-p="anthropic">Claude</button>
+        <button type="button" data-p="gemini">Gemini</button>
+        <button type="button" data-p="openai">ChatGPT</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="setKey" id="setKeyLabel">Anthropic API key</label>
+      <input type="password" id="setKey" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:180px">
+        <label for="setModel">Model for pictures</label>
+        <input type="text" id="setModel" list="modelChoices" spellcheck="false">
+      </div>
+      <div class="field" style="flex:1;min-width:180px">
+        <label for="setStampModel">Model for stamps</label>
+        <input type="text" id="setStampModel" list="modelChoices" spellcheck="false">
+      </div>
+    </div>
+    <datalist id="modelChoices"></datalist>
+    <label class="check"><input type="checkbox" id="setRemember"> Remember my keys in this browser</label>
+    <p class="note">Keys go only to the company that made the AI, straight from this page, and are never saved in your book. Get a key at <a id="setKeyLink" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
+    <div class="row" style="justify-content:flex-end">
+      <button id="setForget" type="button">Clear this key</button>
+      <button class="primary" id="setSave" type="button">Save</button>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+const PAPERS = {
+  a4: { w: 297, h: 210, label: "A4 · 297 × 210 mm · landscape", finished: "74 × 105 mm" },
+  letter: { w: 279.4, h: 215.9, label: "US Letter · 11 × 8½ in · landscape", finished: "2¾ × 4¼ in" },
+};
+// Sheet slots left to right, top row (printed upside down) then bottom row.
+const SLOTS = [5, 4, 3, 2, 6, 7, 8, 1];
+const STORE = "tinybook.v1";
+const $ = (id) => document.getElementById(id);
+
+// ---------- example book ----------
+const svgUrl = (s) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(s);
+const ex = (body) => svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" width="500" height="400" fill="none" stroke="#111" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`);
+const dot = (x, y, r = 11) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#111" stroke="none"/>`;
+function stepsText(paper) {
+  return "Print landscape, single-sided, at Actual size (100%).\n" +
+    "1. Crease all the dashed folds.\n2. Cut only the solid line in the middle.\n" +
+    "3. Fold in half the long way, printing outside.\n4. Push the ends together: the slit opens into a cross.\n" +
+    "5. Flatten into a book, page 1 in front, page 8 at the back.\n" +
+    "No glue. No staples. Finished size " + PAPERS[paper].finished + ".";
+}
+function exampleBook() {
+  const p = (title, text, art, align = "center") => ({ title, text, art, align });
+  return {
+    v: 1, paper: "a4", guides: true, numbers: true, gray: false, colorDefault: false,
+    pages: [
+      p("A Dot's Big Adventure", "One sheet of paper.\nA whole little book.", ex(`${dot(90, 240, 16)}<path d="M90 240 C 130 110, 250 110, 270 220 S 380 330, 420 210"/><path d="M398 222 L420 210 L428 236"/>`)),
+      p("Hello, dot.", "Every adventure starts somewhere.", ex(dot(250, 200, 20))),
+      p("Off we go!", "The dot takes a walk and leaves a line.", ex(`<path d="M60 250 C 130 120, 210 130, 250 220 S 370 320, 430 160"/>${dot(430, 160)}`)),
+      p("Three corners.", "The line comes home.\nA triangle!", ex(`<path d="M130 100 L370 100 L250 320 Z"/>${dot(130, 100)}${dot(370, 100)}${dot(250, 320)}`)),
+      p("Four corners.", "One more corner...\nA square!", ex(`<rect x="140" y="80" width="220" height="220"/>${dot(140, 80)}${dot(360, 80)}${dot(140, 300)}${dot(360, 300)}`)),
+      p("A place to stay.", "Add a roof and a door.\nNow it is a house.", ex(`<path d="M150 180 L250 90 L350 180"/><rect x="150" y="180" width="200" height="160"/><rect x="180" y="210" width="40" height="40"/><rect x="280" y="210" width="40" height="40"/><path d="M230 340 V270 H270 V340"/>`)),
+      p("Your turn.", "Where will your dot go next?\nDraw your own adventure.", ex(`<rect x="40" y="30" width="420" height="340" rx="16" stroke="#9a9a9a" stroke-width="4" stroke-dasharray="14 12"/>${dot(90, 320)}`)),
+      p("Making this mini-book", stepsText("a4"), null, "left"),
+    ],
+  };
+}
+function blankBook(paper = "a4") {
+  const b = exampleBook();
+  b.paper = paper;
+  b.pages = Array.from({ length: 8 }, () => ({ title: "", text: "", art: null, align: "center" }));
+  b.pages[0].title = "My Little Book";
+  return b;
+}
+
+// ---------- state ----------
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE));
+    if (s && s.v === 1 && Array.isArray(s.pages) && s.pages.length === 8 && PAPERS[s.paper]) return s;
+  } catch (e) {}
+  return null;
+}
+let state = load() || exampleBook();
+let sel = 1;
+let saveTimer = 0;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    let ok = true;
+    try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { ok = false; }
+    $("storeWarn").hidden = ok;
+  }, 400);
+}
+function changed() { save(); drawPreview(); }
+
+// ---------- images & fonts ----------
+const imgCache = new Map();
+function getImg(src) {
+  let e = imgCache.get(src);
+  if (!e) {
+    const im = new Image();
+    e = { im, ok: false };
+    e.p = new Promise((res) => {
+      im.onload = () => { e.ok = true; res(); };
+      im.onerror = () => { e.bad = true; res(); };
+    });
+    im.src = src;
+    imgCache.set(src, e);
+  }
+  return e;
+}
+const fontsReady = Promise.all([
+  "600 20px Fredoka", "600 20px Nunito", "700 20px Nunito",
+].map((f) => document.fonts && document.fonts.load(f).catch(() => {}))).catch(() => {});
+async function allReady() {
+  await fontsReady;
+  await Promise.all(state.pages.filter((p) => p.art).map((p) => getImg(p.art).p));
+}
+
+// ---------- text layout ----------
+function wrap(ctx, text, maxW) {
+  const out = [];
+  for (const para of text.split("\n")) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) { out.push(""); continue; }
+    let line = "";
+    for (const w of words) {
+      const t = line ? line + " " + w : w;
+      if (!line || ctx.measureText(t).width <= maxW) line = t;
+      else { out.push(line); line = w; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+function fit(ctx, text, font, size, min, maxW, maxH, lh) {
+  for (let s = size; ; s *= 0.93) {
+    ctx.font = font(s);
+    const lines = wrap(ctx, text, maxW);
+    const h = lines.length * s * lh;
+    const tooWide = lines.some((l) => ctx.measureText(l).width > maxW);
+    if ((h <= maxH && !tooWide) || s * 0.93 < min) return { s, lines, h, font: font(s), lh };
+  }
+}
+function drawLines(ctx, b, x, y, align) {
+  ctx.font = b.font;
+  ctx.textAlign = align;
+  ctx.textBaseline = "top";
+  b.lines.forEach((l, i) => ctx.fillText(l, x, y + i * b.s * b.lh + b.s * (b.lh - 1) / 2));
+}
+const TITLE_FONT = (s) => `600 ${s}px Fredoka, "Trebuchet MS", sans-serif`;
+const BODY_FONT = (s) => `600 ${s}px Nunito, "Segoe UI", sans-serif`;
+
+// ---------- rendering ----------
+// One panel in its own upright coordinates; w, h in px; k = px per mm.
+// Where the heading, picture and words go; withArt lays out room for a picture even if there is none yet.
+function layoutPanel(ctx, pg, num, w, h, k, withArt = !!pg.art) {
+  const pad = 5.5 * k, iw = w - 2 * pad, gap = 3 * k;
+  const bottom = h - (state.numbers ? 7 * k : pad);
+  const y0 = pad + 1.5 * k;
+  let tb = null, cb = null;
+  if (pg.title.trim()) {
+    tb = fit(ctx, pg.title.trim(), TITLE_FONT, (num === 1 ? 8.2 : 6.4) * k, 2.6 * k, iw, h * 0.3, 1.12);
+  }
+  const capRoom = withArt ? h * 0.32 : bottom - y0 - (tb ? tb.h + gap : 0);
+  if (pg.text.trim()) cb = fit(ctx, pg.text.replace(/\s+$/, ""), BODY_FONT, 4.3 * k, 1.8 * k, iw, capRoom, 1.32);
+  const top = y0 + (tb ? tb.h + gap : 0);
+  const bot = bottom - (cb ? cb.h + gap : 0);
+  return { pad, iw, gap, bottom, y0, tb, cb, top, bot };
+}
+// The picture's shape as a viewBox (long side 500) and in real size, for Claude's prompt.
+function artViewBox(n) { const r = artAspect(n); return r >= 1 ? { w: 500, h: Math.round(500 / r) } : { w: Math.round(500 * r), h: 500 }; }
+function artMm(n) {
+  const P = PAPERS[state.paper], wmm = P.w / 4 - 11, hmm = wmm / artAspect(n);
+  return (wmm / 10).toFixed(1) + " cm wide and " + (hmm / 10).toFixed(1) + " cm tall";
+}
+// Width : height of the free space for a picture on page n.
+function artAspect(n) {
+  const P = PAPERS[state.paper], k = 10, c = document.createElement("canvas").getContext("2d");
+  const L = layoutPanel(c, state.pages[n - 1], n, P.w / 4 * k, P.h / 2 * k, k, true);
+  return Math.max(0.4, Math.min(3, L.iw / Math.max(1, L.bot - L.top)));
+}
+function renderPanel(ctx, pg, num, w, h, k) {
+  const { pad, iw, gap, bottom, y0, tb, cb } = layoutPanel(ctx, pg, num, w, h, k);
+  let y = y0;
+  ctx.fillStyle = "#111";
+  if (tb) { drawLines(ctx, tb, w / 2, y, "center"); y += tb.h + gap; }
+  const left = pg.align === "left";
+  if (pg.art) {
+    const top = y, bot = bottom - (cb ? cb.h + gap : 0);
+    const e = getImg(pg.art);
+    if (e.ok && bot - top > 6 * k) {
+      const iwN = e.im.naturalWidth || 500, ihN = e.im.naturalHeight || 400;
+      const sc = Math.min(iw / iwN, (bot - top) / ihN);
+      const dw = iwN * sc, dh = ihN * sc;
+      ctx.drawImage(e.im, pad + (iw - dw) / 2, top + (bot - top - dh) / 2, dw, dh);
+    } else if (!e.ok && !e.bad) e.p.then(drawPreview);
+    if (cb) { ctx.fillStyle = "#222"; drawLines(ctx, cb, left ? pad : w / 2, bot + gap, left ? "left" : "center"); }
+  } else if (cb) {
+    ctx.fillStyle = "#222";
+    drawLines(ctx, cb, left ? pad : w / 2, y, left ? "left" : "center");
+  }
+  if (state.numbers) {
+    ctx.fillStyle = "#666";
+    ctx.font = `700 ${2.6 * k}px Nunito, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(String(num), w / 2, h - 3.6 * k);
+  }
+}
+function renderSheet(ctx, k, opt = {}) {
+  const P = PAPERS[state.paper];
+  const W = P.w * k, H = P.h * k, pw = W / 4, ph = H / 2;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, W, H);
+  SLOTS.forEach((num, i) => {
+    const row = i < 4 ? 0 : 1, col = i % 4;
+    ctx.save();
+    ctx.translate(col * pw, row * ph);
+    if (row === 0) { ctx.translate(pw, ph); ctx.rotate(Math.PI); }
+    ctx.beginPath(); ctx.rect(0, 0, pw, ph); ctx.clip();
+    renderPanel(ctx, state.pages[num - 1], num, pw, ph, k);
+    ctx.restore();
+  });
+  if (state.gray) grayscale(ctx, Math.round(W), Math.round(H));
+  if (state.guides) {
+    ctx.save();
+    ctx.lineWidth = Math.max(1, 0.25 * k);
+    ctx.strokeStyle = "#9a9a9a";
+    ctx.setLineDash([2 * k, 1.6 * k]);
+    ctx.beginPath();
+    for (const x of [pw, 2 * pw, 3 * pw]) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+    ctx.moveTo(0, ph); ctx.lineTo(pw, ph);
+    ctx.moveTo(3 * pw, ph); ctx.lineTo(W, ph);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = Math.max(1.2, 0.4 * k);
+    ctx.beginPath();
+    ctx.moveTo(pw, ph); ctx.lineTo(3 * pw, ph);
+    ctx.moveTo(pw, ph - 1.5 * k); ctx.lineTo(pw, ph + 1.5 * k);
+    ctx.moveTo(3 * pw, ph - 1.5 * k); ctx.lineTo(3 * pw, ph + 1.5 * k);
+    ctx.stroke();
+    ctx.font = `800 ${1.9 * k}px Nunito, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const label = "CUT THIS SOLID LINE ONLY";
+    const lw = ctx.measureText(label).width + 2.4 * k;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(W / 2 - lw / 2, ph - 1.3 * k, lw, 2.6 * k);
+    ctx.fillStyle = "#111";
+    ctx.fillText(label, W / 2, ph + 0.1 * k);
+    ctx.restore();
+  }
+  if (opt.sel) {
+    const i = SLOTS.indexOf(opt.sel), col = i % 4, row = i < 4 ? 0 : 1;
+    ctx.save();
+    ctx.strokeStyle = "#e4572e";
+    ctx.lineWidth = Math.max(2, 0.9 * k);
+    ctx.strokeRect(col * pw + ctx.lineWidth / 2, row * ph + ctx.lineWidth / 2, pw - ctx.lineWidth, ph - ctx.lineWidth);
+    ctx.restore();
+  }
+  if (opt.drop) {
+    const i = SLOTS.indexOf(opt.drop), col = i % 4, row = i < 4 ? 0 : 1;
+    ctx.save();
+    ctx.fillStyle = "rgba(228, 87, 46, 0.18)";
+    ctx.fillRect(col * pw, row * ph, pw, ph);
+    ctx.strokeStyle = "#e4572e"; ctx.lineWidth = Math.max(3, 1.4 * k);
+    ctx.setLineDash([3 * k, 2 * k]);
+    ctx.strokeRect(col * pw + ctx.lineWidth / 2, row * ph + ctx.lineWidth / 2, pw - ctx.lineWidth, ph - ctx.lineWidth);
+    ctx.restore();
+  }
+}
+function grayscale(ctx, W, H) {
+  const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    d[i] = d[i + 1] = d[i + 2] = g;
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+const sheet = $("sheet");
+let rafPending = false;
+function drawPreview() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    const P = PAPERS[state.paper];
+    // Fit the sheet inside its box: by width when stacked, by width and height on one screen.
+    const box = $("sheetWrap");
+    let cssW = box.clientWidth || 800;
+    if (matchMedia(ONE_SCREEN).matches && box.clientHeight > 50) cssW = Math.min(cssW, box.clientHeight * P.w / P.h);
+    cssW = Math.max(120, Math.floor(cssW));
+    sheet.style.width = cssW + "px";
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = Math.round(cssW * dpr), H = Math.round(cssW * dpr * P.h / P.w);
+    if (sheet.width !== W || sheet.height !== H) { sheet.width = W; sheet.height = H; }
+    sheet.style.aspectRatio = `${P.w} / ${P.h}`;
+    const ctx = sheet.getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    renderSheet(ctx, W / P.w, { sel, drop: dropPage });
+  });
+}
+const ONE_SCREEN = "(min-width: 900px) and (min-height: 560px)";
+new ResizeObserver(drawPreview).observe($("sheetWrap"));
+function pageAt(e) {
+  const r = sheet.getBoundingClientRect();
+  const col = Math.max(0, Math.min(3, Math.floor((e.clientX - r.left) / r.width * 4)));
+  const row = Math.max(0, Math.min(1, Math.floor((e.clientY - r.top) / r.height * 2)));
+  return SLOTS[row * 4 + col];
+}
+sheet.addEventListener("click", (e) => {
+  select(pageAt(e));
+  if (window.matchMedia("(max-width: 980px)").matches) $("edHead").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+// Drop a picture file straight onto a page of the sheet.
+let dropPage = 0;
+sheet.addEventListener("dragover", (e) => {
+  if (![...e.dataTransfer.types].includes("Files")) return;
+  e.preventDefault();
+  const n = pageAt(e);
+  if (n !== dropPage) { dropPage = n; drawPreview(); }
+});
+sheet.addEventListener("dragleave", () => { dropPage = 0; drawPreview(); });
+sheet.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const n = pageAt(e), f = e.dataTransfer.files[0];
+  dropPage = 0;
+  select(n);
+  if (f) importFile(f);
+});
+
+// ---------- editor ----------
+const tabs = $("tabs");
+for (let n = 1; n <= 8; n++) {
+  const b = document.createElement("button");
+  b.type = "button"; b.setAttribute("role", "tab"); b.id = "tab" + n;
+  b.innerHTML = `${n}<span>${n === 1 ? "cover" : n === 8 ? "back" : "page"}</span>`;
+  b.onclick = () => select(n);
+  tabs.append(b);
+}
+function page() { return state.pages[sel - 1]; }
+function select(n) { sel = n; syncEditor(); drawPreview(); }
+function syncEditor() {
+  const pg = page();
+  for (let n = 1; n <= 8; n++) $("tab" + n).setAttribute("aria-selected", String(n === sel));
+  $("edHead").textContent = sel === 1 ? "Page 1 · front cover" : sel === 8 ? "Page 8 · back cover" : "Page " + sel;
+  $("edTitle").value = pg.title;
+  $("edText").value = pg.text;
+  $("alCenter").setAttribute("aria-pressed", String(pg.align !== "left"));
+  $("alLeft").setAttribute("aria-pressed", String(pg.align === "left"));
+  $("artImg").hidden = !pg.art;
+  $("artEmpty").hidden = !!pg.art;
+  if (pg.art) $("artImg").src = pg.art;
+  $("btnRemove").disabled = !pg.art;
+  $("drawLabel").textContent = pg.art ? "Draw on it" : "Draw";
+  $("artBox").style.aspectRatio = String(artAspect(sel));
+}
+function syncOptions() {
+  $("paperA4").setAttribute("aria-pressed", String(state.paper === "a4"));
+  $("paperLetter").setAttribute("aria-pressed", String(state.paper === "letter"));
+  $("optGuides").checked = state.guides;
+  $("optNumbers").checked = state.numbers;
+  $("optGray").checked = state.gray;
+  $("sheetLabel").textContent = PAPERS[state.paper].label;
+  $("finishedNote").textContent = "Finished book: " + PAPERS[state.paper].finished;
+}
+$("edTitle").addEventListener("input", (e) => { page().title = e.target.value; changed(); });
+$("edText").addEventListener("input", (e) => { page().text = e.target.value; changed(); });
+$("alCenter").onclick = () => { page().align = "center"; syncEditor(); changed(); };
+$("alLeft").onclick = () => { page().align = "left"; syncEditor(); changed(); };
+function setPaper(p) {
+  // Keep the folding steps on page 8 in step with the paper.
+  const last = state.pages[7];
+  if (last.text === stepsText(state.paper)) last.text = stepsText(p);
+  state.paper = p; syncOptions(); syncEditor(); changed();
+}
+$("paperA4").onclick = () => setPaper("a4");
+$("paperLetter").onclick = () => setPaper("letter");
+$("optGuides").onchange = (e) => { state.guides = e.target.checked; changed(); };
+$("optNumbers").onchange = (e) => { state.numbers = e.target.checked; changed(); };
+$("optGray").onchange = (e) => { state.gray = e.target.checked; changed(); };
+$("btnSteps").onclick = () => {
+  closeModal("foldModal");
+  Object.assign(state.pages[7], { title: "Making this mini-book", text: stepsText(state.paper), art: null, align: "left" });
+  select(8); changed(); toast("Folding steps are on page 8");
+};
+function setArt(url) { page().art = url; syncEditor(); changed(); }
+$("btnRemove").onclick = () => setArt(null);
+
+let pendingAsk = null;
+function ask(o) {
+  $("askTitle").textContent = o.title; $("askBody").textContent = o.body;
+  $("askYes").textContent = o.yes; $("askNo").textContent = o.no || "Keep this book";
+  $("askAlt").hidden = !o.alt; $("askAlt").textContent = o.alt || "";
+  pendingAsk = o; openModal("askModal");
+  $("askYes").focus();
+}
+$("askNo").onclick = () => closeModal("askModal");
+$("askYes").onclick = () => { closeModal("askModal"); pendingAsk && pendingAsk.onYes(); };
+$("askAlt").onclick = () => { closeModal("askModal"); pendingAsk && pendingAsk.onAlt && pendingAsk.onAlt(); };
+$("btnNew").onclick = () => ask({ title: "Start a new book?", body: "This clears all eight pages. Download a PDF first if you want to keep this one.", yes: "Start over", onYes: () => {
+  state = blankBook(state.paper); sel = 1; syncOptions(); syncEditor(); changed();
+} });
+$("btnExample").onclick = () => ask({ title: "Load the example book?", body: "This replaces your pages with “A Dot's Big Adventure”.", yes: "Load the example", onYes: () => {
+  const p = state.paper; state = exampleBook(); setPaper(p); sel = 1; syncEditor(); changed();
+} });
+
+// ---------- modals & toast ----------
+function openModal(id) { $(id).hidden = false; }
+function closeModal(id) { $(id).hidden = true; }
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (!$("askModal").hidden) closeModal("askModal");
+    else if (!$("aiModal").hidden) closeAi();
+    else if (!$("settingsModal").hidden) closeModal("settingsModal");
+    else if (!$("drawModal").hidden) requestCloseDraw();
+    else if (!$("fbModal").hidden) closeModal("fbModal");
+    else if (!$("foldModal").hidden) closeModal("foldModal");
+  }
+});
+let toastTimer = 0;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2600);
+}
+
+// ---------- import ----------
+function sanitizeSvg(txt) {
+  const m = String(txt).match(/<svg[\s\S]*<\/svg>/i);
+  if (!m) return null;
+  const doc = new DOMParser().parseFromString(m[0], "image/svg+xml");
+  const svg = doc.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== "svg" || doc.getElementsByTagName("parsererror").length) return null;
+  for (const tag of ["script", "foreignObject", "iframe", "use"]) for (const n of [...doc.getElementsByTagName(tag)]) {
+    if (tag === "use" && /^#/.test(n.getAttribute("href") || n.getAttribute("xlink:href") || "")) continue;
+    n.remove();
+  }
+  for (const el of [svg, ...svg.querySelectorAll("*")]) {
+    for (const a of [...el.attributes]) {
+      if (/^on/i.test(a.name)) el.removeAttribute(a.name);
+      else if (/href$/i.test(a.name) && !/^(#|data:image\/(png|jpe?g|gif|webp))/i.test(a.value.trim())) el.removeAttribute(a.name);
+    }
+  }
+  svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  if (!svg.getAttribute("viewBox")) {
+    const w = parseFloat(svg.getAttribute("width")) || 500, h = parseFloat(svg.getAttribute("height")) || 400;
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  }
+  const vb = svg.getAttribute("viewBox").trim().split(/[\s,]+/).map(Number);
+  svg.setAttribute("width", String(vb[2] > 0 ? vb[2] : 500));
+  svg.setAttribute("height", String(vb[3] > 0 ? vb[3] : 400));
+  return new XMLSerializer().serializeToString(svg);
+}
+const readUrl = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+async function importFile(f) {
+  try {
+    if (f.type === "image/svg+xml" || /\.svg$/i.test(f.name)) {
+      const clean = sanitizeSvg(await f.text());
+      if (!clean) throw new Error("svg");
+      setArt(svgUrl(clean)); return;
+    }
+    if (!/^image\//.test(f.type)) { toast("That file is not a picture"); return; }
+    let url = await readUrl(f);
+    const e = getImg(url); await e.p;
+    if (!e.ok) throw new Error("decode");
+    const w = e.im.naturalWidth, h = e.im.naturalHeight, max = 1600;
+    const sc = Math.min(1, max / Math.max(w, h));
+    if (sc < 1 || f.size > 700000) {
+      const c = document.createElement("canvas");
+      c.width = Math.round(w * sc); c.height = Math.round(h * sc);
+      c.getContext("2d").drawImage(e.im, 0, 0, c.width, c.height);
+      url = /png|gif/.test(f.type) ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.88);
+    }
+    setArt(url);
+  } catch (err) { toast("Could not read that picture"); }
+}
+$("btnImport").onclick = () => {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*,.svg";
+  inp.onchange = () => { if (inp.files[0]) importFile(inp.files[0]); };
+  inp.click();
+};
+const artBox = $("artBox");
+artBox.addEventListener("dragover", (e) => { e.preventDefault(); artBox.classList.add("drop"); });
+artBox.addEventListener("dragleave", () => artBox.classList.remove("drop"));
+artBox.addEventListener("drop", (e) => {
+  e.preventDefault(); artBox.classList.remove("drop");
+  const f = e.dataTransfer.files[0]; if (f) importFile(f);
+});
+
+// ---------- drawing ----------
+const dc = $("drawCanvas"), dctx = dc.getContext("2d", { willReadFrequently: true });
+const GRAYS = ["#111111", "#6e6e6e", "#b4b4b4"];
+const COLORS = ["#111111", "#e63946", "#f4a261", "#f9c74f", "#90be6d", "#2a9d8f", "#4d96ff", "#7b5ea7", "#f78fb3", "#8d5524", "#9e9e9e"];
+const SIZES = [6, 14, 30];
+const draw = { tool: "pen", color: "#111111", size: 14, undo: [], down: false, last: null };
+function renderSwatches() {
+  const useColor = $("drawColor").checked;
+  const list = useColor ? COLORS : GRAYS;
+  if (!list.includes(draw.color)) draw.color = "#111111";
+  const box = $("swatches"); box.innerHTML = "";
+  for (const c of list) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "swatch"; b.style.background = c;
+    b.setAttribute("aria-label", "Color " + c); b.setAttribute("aria-pressed", String(c === draw.color));
+    b.onclick = () => { draw.color = c; if (draw.tool === "eraser") setTool("pen"); renderSwatches(); };
+    box.append(b);
+  }
+}
+function renderSizes() {
+  const box = $("sizes"); box.innerHTML = "";
+  SIZES.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-label", ["Thin", "Medium", "Thick"][i] + " line");
+    b.setAttribute("aria-pressed", String(s === draw.size));
+    b.innerHTML = `<i style="width:${6 + i * 6}px;height:${6 + i * 6}px"></i>`;
+    b.onclick = () => { draw.size = s; renderSizes(); };
+    box.append(b);
+  });
+}
+function setTool(t) {
+  if (draw.tool === "stamp" && t !== "stamp") putAwayStamp(true);
+  draw.tool = t;
+  $("stampBar").hidden = t !== "stamp";
+  sl.classList.toggle("on", t === "stamp");
+  fitDraw();
+  for (const b of $("tools").querySelectorAll("[data-tool]")) b.setAttribute("aria-pressed", String(b.dataset.tool === t));
+}
+$("tools").querySelectorAll("[data-tool]").forEach((b) => (b.onclick = () => setTool(b.dataset.tool)));
+$("drawColor").onchange = () => { state.colorDefault = $("drawColor").checked; save(); renderSwatches(); };
+function snapshot() { draw.undo.push(dctx.getImageData(0, 0, dc.width, dc.height)); if (draw.undo.length > 25) draw.undo.shift(); }
+$("drawUndo").onclick = () => { const s = draw.undo.pop(); if (s) dctx.putImageData(s, 0, 0); };
+$("drawClear").onclick = () => { snapshot(); dctx.clearRect(0, 0, dc.width, dc.height); };
+function pt(e) {
+  const r = dc.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * dc.width / r.width, y: (e.clientY - r.top) * dc.height / r.height };
+}
+function stroke(a, b) {
+  dctx.save();
+  dctx.globalCompositeOperation = draw.tool === "eraser" ? "destination-out" : "source-over";
+  dctx.strokeStyle = draw.color; dctx.fillStyle = draw.color;
+  dctx.lineWidth = draw.tool === "eraser" ? draw.size * 2 : draw.size;
+  dctx.lineCap = "round"; dctx.lineJoin = "round";
+  dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(b.x, b.y); dctx.stroke();
+  dctx.restore();
+}
+dc.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  const p = pt(e);
+  snapshot();
+  if (draw.tool === "fill") { flood(Math.floor(p.x), Math.floor(p.y), draw.color); return; }
+  try { dc.setPointerCapture(e.pointerId); } catch (err) {}
+  draw.down = true; draw.last = p;
+  stroke(p, { x: p.x + 0.01, y: p.y });
+});
+dc.addEventListener("pointermove", (e) => {
+  if (!draw.down) return;
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for (const ev of (evs.length ? evs : [e])) { const p = pt(ev); stroke(draw.last, p); draw.last = p; }
+});
+const endStroke = () => { draw.down = false; };
+dc.addEventListener("pointerup", endStroke);
+dc.addEventListener("pointercancel", endStroke);
+function flood(x, y, hex) {
+  const W = dc.width, H = dc.height;
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const id = dctx.getImageData(0, 0, W, H), d = id.data;
+  const fc = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+  const i0 = (y * W + x) * 4;
+  const t = [d[i0], d[i0 + 1], d[i0 + 2], d[i0 + 3]];
+  const clear = t[3] < 60;
+  const match = (i) => clear ? d[i + 3] < 60
+    : Math.abs(d[i] - t[0]) + Math.abs(d[i + 1] - t[1]) + Math.abs(d[i + 2] - t[2]) + Math.abs(d[i + 3] - t[3]) < 90;
+  if (!clear && Math.abs(t[0] - fc[0]) + Math.abs(t[1] - fc[1]) + Math.abs(t[2] - fc[2]) < 6 && t[3] > 250) return;
+  const mask = new Uint8Array(W * H);
+  const stack = [x, y];
+  while (stack.length) {
+    const cy = stack.pop(), cx = stack.pop();
+    let lx = cx;
+    while (lx >= 0 && !mask[cy * W + lx] && match((cy * W + lx) * 4)) lx--;
+    lx++;
+    let up = false, dn = false;
+    for (let xx = lx; xx < W; xx++) {
+      const j = cy * W + xx;
+      if (mask[j] || !match(j * 4)) break;
+      mask[j] = 1;
+      if (cy > 0) { const u = !mask[j - W] && match((j - W) * 4); if (u && !up) stack.push(xx, cy - 1); up = u; }
+      if (cy < H - 1) { const v = !mask[j + W] && match((j + W) * 4); if (v && !dn) stack.push(xx, cy + 1); dn = v; }
+    }
+  }
+  // Paint the region, then tuck the fill under the soft edges of neighboring lines.
+  const edge = new Uint8Array(W * H);
+  for (let j = 0; j < W * H; j++) {
+    if (!mask[j]) continue;
+    const i = j * 4; d[i] = fc[0]; d[i + 1] = fc[1]; d[i + 2] = fc[2]; d[i + 3] = 255;
+    const px = j % W;
+    for (const n of [px > 0 ? j - 1 : -1, px < W - 1 ? j + 1 : -1, j - W, j + W]) if (n >= 0 && n < W * H && !mask[n]) edge[n] = 1;
+  }
+  for (let j = 0; j < W * H; j++) {
+    if (!edge[j]) continue;
+    const i = j * 4, a = d[i + 3] / 255;
+    d[i] = d[i] * a + fc[0] * (1 - a); d[i + 1] = d[i + 1] * a + fc[1] * (1 - a); d[i + 2] = d[i + 2] * a + fc[2] * (1 - a); d[i + 3] = 255;
+  }
+  dctx.putImageData(id, 0, 0);
+}
+// ---------- stamps: small pictures from Claude, placed with move / resize / rotate handles ----------
+const sl = $("stampLayer"), sctx = sl.getContext("2d");
+const stamp = { cur: null, pend: null, drag: null, ctl: null };
+function stampPrompt(what, color) {
+  return [
+    `Make one stamp for a children's drawing program: a single, simple, instantly recognizable picture of: ${what}.`,
+    "It will be stamped small onto a drawing, so use bold, simple shapes that fill most of the square.",
+    color
+      ? "Use cheerful flat colors with a dark outline."
+      : "Use black only: solid black shapes and/or black outlines (#111) with white fills. No gray, no color.",
+    "Transparent background: no background rectangle. No words, letters or numbers.",
+    'Reply with only one complete SVG element using viewBox="0 0 200 200". No scripts, no external images, no <text> elements.',
+  ].join("\n\n");
+}
+function renderChips() {
+  const box = $("stampChips"); box.innerHTML = "";
+  for (const s of state.stamps || []) {
+    const b = document.createElement("button");
+    b.type = "button"; b.title = s.name; b.setAttribute("aria-label", "Stamp: " + s.name);
+    b.setAttribute("aria-pressed", String(stamp.cur === s));
+    const im = document.createElement("img"); im.src = s.url; im.alt = "";
+    b.append(im);
+    b.onclick = () => useStamp(s);
+    box.append(b);
+  }
+}
+function updateStampUi() {
+  const has = !!stamp.pend;
+  $("stampApply").hidden = !has; $("stampDrop").hidden = !has;
+  $("stampMake").disabled = !aiReady() || !!stamp.ctl;
+  if (!aiReady() && !stamp.ctl) $("stampStatus").textContent = "Making new stamps needs an AI: open this app on claude.ai, or add a key in AI settings.";
+  fitDraw();
+}
+async function useStamp(s, at) {
+  const e = getImg(s.url); await e.p;
+  if (!e.ok) return;
+  const nw = e.im.naturalWidth || 200, nh = e.im.naturalHeight || 200, base = 220 / Math.max(nw, nh);
+  const old = stamp.pend;
+  stamp.cur = s;
+  stamp.pend = {
+    img: e.im, w: nw * base, h: nh * base,
+    x: at ? at.x : old ? old.x : sl.width / 2, y: at ? at.y : old ? old.y : sl.height / 2,
+    s: old ? old.s : 1, r: old ? old.r : 0, dirty: true,
+  };
+  $("stampStatus").textContent = "Drag to move it, pull the corner dot to resize, the top dot to turn it. Then press Stamp it.";
+  renderChips(); renderStamp(); updateStampUi();
+}
+function handleR() { return 13 * sl.width / (sl.clientWidth || sl.width); }
+function renderStamp() {
+  sctx.clearRect(0, 0, sl.width, sl.height);
+  const p = stamp.pend; if (!p) return;
+  const hw = p.w * p.s / 2, hh = p.h * p.s / 2, H = handleR();
+  sctx.save();
+  sctx.translate(p.x, p.y); sctx.rotate(p.r);
+  sctx.globalAlpha = 0.85;
+  sctx.drawImage(p.img, -hw, -hh, hw * 2, hh * 2);
+  sctx.globalAlpha = 1;
+  sctx.strokeStyle = "#e4572e"; sctx.lineWidth = H / 5;
+  sctx.setLineDash([H / 1.5, H / 2]);
+  sctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+  sctx.setLineDash([]);
+  sctx.beginPath(); sctx.moveTo(0, -hh); sctx.lineTo(0, -hh - H * 3); sctx.stroke();
+  sctx.fillStyle = "#e4572e"; sctx.strokeStyle = "#fff"; sctx.lineWidth = H / 4;
+  for (const [hx, hy] of [[hw, hh], [0, -hh - H * 3]]) { sctx.beginPath(); sctx.arc(hx, hy, H, 0, Math.PI * 2); sctx.fill(); sctx.stroke(); }
+  sctx.restore();
+}
+function toLocal(p, q) {
+  const dx = q.x - p.x, dy = q.y - p.y, c = Math.cos(-p.r), s = Math.sin(-p.r);
+  return { x: dx * c - dy * s, y: dx * s + dy * c };
+}
+function commitStamp() {
+  const p = stamp.pend; if (!p) return;
+  snapshot();
+  dctx.save();
+  dctx.translate(p.x, p.y); dctx.rotate(p.r);
+  dctx.drawImage(p.img, -p.w * p.s / 2, -p.h * p.s / 2, p.w * p.s, p.h * p.s);
+  dctx.restore();
+  // Leave a copy, nudged aside, ready to be stamped again.
+  p.x = Math.min(sl.width - 20, p.x + 40); p.y = Math.min(sl.height - 20, p.y + 40); p.dirty = false;
+  renderStamp();
+}
+function putAwayStamp(keepPlaced) {
+  if (keepPlaced && stamp.pend && stamp.pend.dirty) commitStamp();
+  stamp.pend = null; renderStamp(); updateStampUi();
+}
+sl.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  const q = pt(e), p = stamp.pend;
+  if (!p) { if (stamp.cur) useStamp(stamp.cur, q); return; }
+  const l = toLocal(p, q), hw = p.w * p.s / 2, hh = p.h * p.s / 2, H = handleR() * 1.7;
+  let mode;
+  if (Math.hypot(l.x, l.y + hh + handleR() * 3) < H) mode = "rot";
+  else if (Math.hypot(l.x - hw, l.y - hh) < H) mode = "scale";
+  else if (Math.abs(l.x) <= hw && Math.abs(l.y) <= hh) mode = "move";
+  else { p.x = q.x; p.y = q.y; mode = "move"; }
+  try { sl.setPointerCapture(e.pointerId); } catch (err) {}
+  stamp.drag = { mode, q0: q, x0: p.x, y0: p.y, s0: p.s, d0: Math.max(1, Math.hypot(q.x - p.x, q.y - p.y)) };
+  p.dirty = true; renderStamp();
+});
+sl.addEventListener("pointermove", (e) => {
+  const d = stamp.drag, p = stamp.pend; if (!d || !p) return;
+  const q = pt(e);
+  if (d.mode === "move") { p.x = d.x0 + q.x - d.q0.x; p.y = d.y0 + q.y - d.q0.y; }
+  else if (d.mode === "scale") p.s = Math.max(0.15, Math.min(4, d.s0 * Math.hypot(q.x - p.x, q.y - p.y) / d.d0));
+  else p.r = Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2;
+  renderStamp();
+});
+const endStampDrag = () => { stamp.drag = null; };
+sl.addEventListener("pointerup", endStampDrag);
+sl.addEventListener("pointercancel", endStampDrag);
+$("stampApply").onclick = commitStamp;
+$("stampDrop").onclick = () => putAwayStamp(false);
+$("stampWhat").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); makeStamp(); } });
+$("stampMake").onclick = makeStamp;
+async function makeStamp() {
+  const what = $("stampWhat").value.trim();
+  if (!what) { $("stampWhat").focus(); return; }
+  if (!aiReady() || stamp.ctl) return;
+  stamp.ctl = new AbortController();
+  const status = $("stampStatus");
+  status.innerHTML = '<span class="spin"></span>' + aiName() + ' is making a stamp of ' + what.replace(/[<&]/g, "") + "…";
+  updateStampUi();
+  try {
+    const { text } = await askAI(stampPrompt(what, $("drawColor").checked), { signal: stamp.ctl.signal, modelTier: "quick" });
+    const clean = sanitizeSvg(text);
+    if (!clean) throw { code: "bad_svg" };
+    const s = { name: what, url: svgUrl(clean) };
+    state.stamps = [s, ...(state.stamps || []).filter((x) => x.name !== what)].slice(0, 12);
+    save();
+    stamp.ctl = null;
+    await useStamp(s);
+  } catch (e) {
+    const code = e && e.code;
+    status.textContent = aiError(e, "Press Make stamp to try again.");
+    if (code === "not_granted" || code === "sampling_disabled") sampleCap = null;
+  } finally {
+    stamp.ctl = null; updateStampUi();
+  }
+}
+
+async function openDraw() {
+  $("drawTitle").textContent = "Draw page " + sel;
+  $("drawColor").checked = !!state.colorDefault;
+  // The canvas takes the shape of the free space on this page, long side 1000 px.
+  const ratio = artAspect(sel);
+  draw.ratio = ratio;
+  dc.width = sl.width = Math.round(ratio >= 1 ? 1000 : 1000 * ratio);
+  dc.height = sl.height = Math.round(ratio >= 1 ? 1000 / ratio : 1000);
+  stamp.pend = null; stamp.cur = null; renderStamp();
+  $("toolStamp").hidden = !aiReady() && !(state.stamps || []).length;
+  draw.undo = []; setTool("pen"); renderSwatches(); renderSizes(); renderChips(); updateStampUi();
+  dctx.clearRect(0, 0, dc.width, dc.height);
+  const art = page().art;
+  if (art) {
+    const e = getImg(art); await e.p;
+    if (e.ok) {
+      const sc = Math.min(dc.width / e.im.naturalWidth, dc.height / e.im.naturalHeight);
+      const w = e.im.naturalWidth * sc, h = e.im.naturalHeight * sc;
+      dctx.drawImage(e.im, (dc.width - w) / 2, (dc.height - h) / 2, w, h);
+    }
+  }
+  openModal("drawModal");
+  fitDraw();
+}
+function canvasEmpty() {
+  const d = dctx.getImageData(0, 0, dc.width, dc.height).data;
+  for (let i = 3; i < d.length; i += 16) if (d[i]) return false;
+  return true;
+}
+$("btnDraw").onclick = openDraw;
+function closeDraw() { stamp.ctl && stamp.ctl.abort(); closeModal("drawModal"); }
+// The × and Escape ask first when there is something to lose; Cancel means throw it away.
+function requestCloseDraw() {
+  if (!draw.undo.length && !(stamp.pend && stamp.pend.dirty)) { closeDraw(); return; }
+  ask({
+    title: "Keep this drawing?", body: "You can put it on page " + sel + " or throw it away.",
+    yes: "Put it on the page", onYes: () => $("drawSave").click(),
+    alt: "Throw it away", onAlt: closeDraw, no: "Keep drawing",
+  });
+}
+$("drawClose").onclick = requestCloseDraw;
+$("drawCancel").onclick = closeDraw;
+// Size the drawing area so the whole dialog fits in the window.
+function fitDraw() {
+  const modal = $("drawModal"); if (modal.hidden) return;
+  const holder = $("canvasHolder"), dlg = $("drawDialog");
+  const ms = getComputedStyle(modal), ds = getComputedStyle(dlg);
+  const availH = modal.clientHeight - parseFloat(ms.paddingTop) - parseFloat(ms.paddingBottom);
+  const other = dlg.scrollHeight - holder.offsetHeight;
+  const availW = holder.parentElement.clientWidth;
+  const w = Math.max(180, Math.min(availW, (availH - other - 2) * (draw.ratio || 1.25)));
+  holder.style.width = Math.floor(w) + "px";
+  renderStamp();
+}
+window.addEventListener("resize", fitDraw);
+$("drawSave").onclick = () => {
+  putAwayStamp(true);
+  setArt(canvasEmpty() ? null : dc.toDataURL("image/png"));
+  closeModal("drawModal");
+};
+document.addEventListener("keydown", (e) => {
+  if (!$("drawModal").hidden && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); $("drawUndo").click(); }
+  if (!$("drawModal").hidden && e.key === "Enter" && draw.tool === "stamp" && stamp.pend && e.target !== $("stampWhat")) { e.preventDefault(); commitStamp(); }
+});
+
+// ---------- AI ----------
+// Routes to an AI: the viewer's claude.ai account (published artifact), or the viewer's own key for Claude, Gemini or ChatGPT.
+let sampleCap = null, downloadsCap = null, capsKnown = false;
+const IN_CLAUDE = !!(window.claude && typeof window.claude.use === "function");
+const KEY_STORE = "tinybook.key", AI_STORE = "tinybook.ai";
+const PROVIDERS = {
+  anthropic: {
+    name: "Claude", company: "Anthropic", hint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys", keySite: "console.anthropic.com",
+    pic: "claude-sonnet-5-5", stamp: "claude-haiku-5-5",
+    choices: [["claude-haiku-5-5", "Claude Haiku 5.5 · fastest"], ["claude-sonnet-5-5", "Claude Sonnet 5.5"], ["claude-opus-5-5", "Claude Opus 5.5"], ["claude-fable-5-1", "Claude Fable 5.1 · strongest"]],
+  },
+  gemini: {
+    name: "Gemini", company: "Google", hint: "AIza…", keyUrl: "https://aistudio.google.com/app/apikey", keySite: "aistudio.google.com",
+    pic: "gemini-3.8-flash", stamp: "gemini-3.5-flash-lite",
+    choices: [["gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite · fastest"], ["gemini-3.8-flash", "Gemini 3.8 Flash"], ["gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview) · strongest"]],
+  },
+  openai: {
+    name: "ChatGPT", company: "OpenAI", hint: "sk-…", keyUrl: "https://platform.openai.com/api-keys", keySite: "platform.openai.com",
+    pic: "gpt-6.1-sol", stamp: "gpt-6-luna",
+    choices: [["gpt-6-luna", "GPT-6 Luna · fastest"], ["gpt-5.6-terra", "GPT-5.6 Terra"], ["gpt-6.1-sol", "GPT-6.1 Sol"], ["gpt-6-astra", "GPT-6 Astra · strongest"]],
+  },
+};
+function freshAi() {
+  const models = {};
+  for (const [id, P] of Object.entries(PROVIDERS)) models[id] = { pic: P.pic, stamp: P.stamp };
+  return { provider: "anthropic", keys: { anthropic: "", gemini: "", openai: "" }, models, remember: false };
+}
+let ai = freshAi();
+try {
+  const a = JSON.parse(localStorage.getItem(AI_STORE));
+  if (a && PROVIDERS[a.provider]) ai.provider = a.provider;
+  if (a && a.models) for (const id in PROVIDERS) Object.assign(ai.models[id], a.models[id] || {});
+  if (a && a.model && !a.models) ai.models.anthropic.pic = a.model;          // the one-provider settings of version 3
+} catch (e) {}
+try {
+  const k = localStorage.getItem(KEY_STORE);
+  if (k) {
+    let keys; try { keys = JSON.parse(k); } catch (e) { keys = { anthropic: k }; }   // version 3 kept one Anthropic key as plain text
+    if (keys && typeof keys === "object") { Object.assign(ai.keys, keys); ai.remember = true; }
+  }
+} catch (e) {}
+function aiKey() { return ai.keys[ai.provider] || ""; }
+function aiReady() { return !!sampleCap || !!aiKey(); }
+function aiName() { return sampleCap ? "Claude" : PROVIDERS[ai.provider].name; }
+function updateAiButton() {
+  const note = $("aiNote"), name = aiName();
+  $("btnClaude").textContent = sampleCap ? "AI: Claude (your account)" : aiKey() ? "AI: " + name : "AI: add a key";
+  $("askLabel").textContent = "Ask " + name;
+  if (!capsKnown) { $("btnAsk").disabled = true; note.textContent = "Checking whether an AI can draw here…"; return; }
+  $("btnAsk").disabled = !aiReady();
+  note.textContent = aiReady() ? "" : "To ask an AI for pictures, open this app on claude.ai or add a key in AI settings.";
+}
+async function postJson(url, headers, body, signal) {
+  let res, j = null;
+  try {
+    res = await fetch(url, { method: "POST", signal, headers: Object.assign({ "content-type": "application/json" }, headers), body: JSON.stringify(body) });
+    j = await res.json().catch(() => null);
+  } catch (e) { throw { code: signal && signal.aborted ? "cancelled" : "network" }; }
+  if (signal && signal.aborted) throw { code: "cancelled" };
+  if (!res.ok) {
+    const err = j && (Array.isArray(j) ? j[0] && j[0].error : j.error);
+    const msg = (err && err.message) || "";
+    const code = res.status === 401 || res.status === 403 || /api.?key/i.test(msg) ? "bad_key" : res.status === 429 ? "rate_limited"
+      : res.status >= 500 ? "upstream_error" : res.status === 404 || /model/i.test(msg) ? "bad_model" : "api_error";
+    throw { code, message: msg };
+  }
+  return j || {};
+}
+async function askAI(prompt, opts = {}) {
+  if (sampleCap) return sampleCap(prompt, opts);
+  const key = aiKey();
+  if (!key) throw { code: "no_key" };
+  const P = PROVIDERS[ai.provider], m = ai.models[ai.provider];
+  const model = (opts.modelTier === "quick" ? m.stamp : m.pic).trim() || (opts.modelTier === "quick" ? P.stamp : P.pic);
+  let text = "";
+  if (ai.provider === "anthropic") {
+    const j = await postJson("https://api.anthropic.com/v1/messages",
+      { "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      { model, max_tokens: 8000, messages: [{ role: "user", content: prompt }] }, opts.signal);
+    if (j.stop_reason === "refusal") throw { code: "refused" };
+    text = (j.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  } else if (ai.provider === "gemini") {
+    const gen = { maxOutputTokens: 8000 };
+    const gm = /^gemini-(\d+)/.exec(model);
+    if (/^gemini-2\.5-flash/.test(model)) gen.thinkingConfig = { thinkingBudget: 0 };
+    else if (gm && +gm[1] >= 3) gen.thinkingConfig = { thinkingLevel: "low" };
+    const j = await postJson("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent",
+      { "x-goog-api-key": key }, { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: gen }, opts.signal);
+    const parts = (((j.candidates || [])[0] || {}).content || {}).parts || [];
+    text = parts.filter((x) => !x.thought).map((x) => x.text || "").join("");
+  } else {
+    const j = await postJson("https://api.openai.com/v1/chat/completions", { Authorization: "Bearer " + key },
+      { model, messages: [{ role: "user", content: prompt }], max_completion_tokens: 8000 }, opts.signal);
+    text = String(((((j.choices || [])[0]) || {}).message || {}).content || "");
+  }
+  if (!text.trim()) throw { code: "empty_completion" };
+  return { text };
+}
+function aiError(e, again) {
+  const code = e && e.code, name = aiName();
+  if (code === "cancelled") return "Stopped.";
+  if (code === "bad_svg") return "That didn't come back as a picture. " + again;
+  if (code === "api_error") return name + " sent back an error" + (e.message ? ": " + e.message : ".");
+  const T = {
+    not_granted: "Claude isn't allowed to draw for this page. You can allow it from the artifact's Permissions menu.",
+    sampling_disabled: "Claude isn't available for this account.",
+    rate_limited: name + " is busy, or you've reached a usage limit. Try again in a little while.",
+    session_expired: "You've been signed out of Claude. Sign in, then use your browser's reload button.",
+    refused: name + " wouldn't draw that one. Try describing it differently.",
+    prompt_too_large: "That description is too long. Make it shorter.",
+    no_key: "Add a key in AI settings first.",
+    bad_key: PROVIDERS[ai.provider].company + " didn't accept that key. Check it in AI settings.",
+    bad_model: "That model name wasn't accepted. Check it in AI settings.",
+    network: IN_CLAUDE ? "This claude.ai page can't reach " + name + " with a key."
+      : ai.provider === "openai" ? "Couldn't reach ChatGPT. OpenAI sometimes refuses calls made straight from a web page; Claude or Gemini will work instead."
+      : "Couldn't reach " + name + ". Check your internet connection.",
+    empty_completion: name + " sent back nothing. Try describing it differently.",
+  };
+  return T[code] || "Something went wrong reaching " + name + ". " + again;
+}
+
+// ---------- AI settings ----------
+let draftAi = null;
+function openSettings() {
+  draftAi = JSON.parse(JSON.stringify(ai));
+  $("setRemember").checked = draftAi.remember;
+  $("setKey").dataset.provider = "";
+  showProvider(draftAi.provider);
+  openModal("settingsModal");
+}
+function readDraft() {
+  const id = draftAi.provider;
+  draftAi.keys[id] = $("setKey").value.trim();
+  draftAi.models[id] = { pic: $("setModel").value.trim() || PROVIDERS[id].pic, stamp: $("setStampModel").value.trim() || PROVIDERS[id].stamp };
+}
+function showProvider(id) {
+  if ($("setKey").dataset.provider) readDraft();
+  draftAi.provider = id;
+  const P = PROVIDERS[id];
+  for (const b of $("setProviders").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.p === id));
+  $("setKeyLabel").textContent = P.company + " API key";
+  $("setKey").placeholder = P.hint; $("setKey").value = draftAi.keys[id] || ""; $("setKey").dataset.provider = id;
+  $("setModel").value = draftAi.models[id].pic; $("setStampModel").value = draftAi.models[id].stamp;
+  $("setModel").placeholder = P.pic; $("setStampModel").placeholder = P.stamp;
+  $("modelChoices").innerHTML = P.choices.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+  $("setKeyLink").href = P.keyUrl; $("setKeyLink").textContent = P.keySite;
+  $("setStatus").textContent = sampleCap
+    ? "On this page pictures come from Claude on your claude.ai account, so no key is needed. A key is used when the app is opened outside claude.ai."
+    : IN_CLAUDE
+      ? "No AI is available on this claude.ai page, and pages on claude.ai can't use a key. Keys work when you open this app's file directly in a browser."
+      : "Pictures and stamps come from the AI you pick here, with your own key.";
+}
+$("setProviders").querySelectorAll("button").forEach((b) => (b.onclick = () => showProvider(b.dataset.p)));
+$("btnClaude").onclick = openSettings;
+$("setClose").onclick = () => closeModal("settingsModal");
+$("setSave").onclick = () => {
+  readDraft();
+  draftAi.remember = $("setRemember").checked;
+  ai = draftAi; $("setKey").dataset.provider = "";
+  try {
+    localStorage.setItem(AI_STORE, JSON.stringify({ provider: ai.provider, models: ai.models }));
+    if (ai.remember && Object.values(ai.keys).some(Boolean)) localStorage.setItem(KEY_STORE, JSON.stringify(ai.keys));
+    else localStorage.removeItem(KEY_STORE);
+  } catch (e) {}
+  closeModal("settingsModal"); updateAiButton();
+  toast(aiKey() ? "Using " + aiName() + (ai.remember ? ", key saved in this browser" : " until you close the page") : "Settings saved");
+};
+$("setForget").onclick = () => {
+  draftAi.keys[draftAi.provider] = ""; $("setKey").value = "";
+  toast("Key cleared. Press Save to keep the change.");
+};
+(async () => {
+  if (window.claude && typeof window.claude.use === "function") {
+    try {
+      [sampleCap, downloadsCap] = await Promise.all([
+        window.claude.use("sample").catch(() => null),
+        window.claude.use("downloads").catch(() => null),
+      ]);
+    } catch (e) {}
+  }
+  capsKnown = true; updateAiButton();
+})();
+
+let aiCtl = null, aiSvg = null;
+function aiPrompt(desc, color) {
+  const pg = page();
+  const book = state.pages[0].title.trim();
+  const ctxLines = [];
+  if (book) ctxLines.push(`The book is called "${book}".`);
+  const words = [pg.title, pg.text].map((s) => s.trim()).filter(Boolean).join(" / ");
+  if (words) ctxLines.push(`The words on this page are: "${words}".`);
+  return [
+    `Draw one picture for page ${sel} of a tiny folded paper book that will be printed on a home printer. The picture area is small (about ${artMm(sel)}), so keep it simple, bold and easy to read.`,
+    ctxLines.join(" "),
+    `The picture should show: ${desc}`,
+    color
+      ? "Style: cheerful flat colors with bold dark outlines, like a picture book. Use a white or transparent background."
+      : "Style: black line art only, like a coloring-book page: black strokes (stroke=\"#111\", stroke-width 6 to 10), fills only white or none, no gray shading, no color. Leave open shapes that a child could color in.",
+    "Do not put any words, letters or numbers in the picture.",
+    `Reply with only one complete SVG element using viewBox="0 0 ${artViewBox(sel).w} ${artViewBox(sel).h}". No scripts, no external images, no <text> elements, no CSS animations.`,
+  ].filter(Boolean).join("\n\n");
+}
+function openAi() {
+  const pg = page();
+  $("aiTitle").textContent = "Ask " + aiName() + " to draw page " + sel;
+  if (!$("aiPrompt").value.trim() || $("aiPrompt").dataset.page !== String(sel)) {
+    $("aiPrompt").value = [pg.title, pg.text].map((s) => s.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ");
+    $("aiPrompt").dataset.page = String(sel);
+  }
+  $("aiColor").checked = !!state.colorDefault;
+  $("aiPreview").style.aspectRatio = String(artAspect(sel));
+  aiStyleNote();
+  aiSvg = null;
+  $("aiImg").hidden = true; $("aiStatus").hidden = false;
+  $("aiStatus").textContent = "Describe a picture, then press Draw it.";
+  $("aiUse").hidden = true; $("aiGo").textContent = "Draw it";
+  openModal("aiModal");
+  $("aiPrompt").focus();
+}
+function aiStyleNote() {
+  $("aiStyleNote").textContent = $("aiColor").checked ? "On: a colored picture." : "Off: black outlines you can color in by hand.";
+}
+$("aiColor").onchange = () => { state.colorDefault = $("aiColor").checked; save(); aiStyleNote(); };
+function closeAi() { aiCtl && aiCtl.abort(); closeModal("aiModal"); }
+$("aiClose").onclick = closeAi;
+$("aiStop").onclick = () => aiCtl && aiCtl.abort();
+$("btnAsk").onclick = openAi;
+$("aiGo").onclick = async () => {
+  const desc = $("aiPrompt").value.trim();
+  if (!desc) { $("aiPrompt").focus(); return; }
+  if (!aiReady()) return;
+  aiCtl = new AbortController();
+  const status = $("aiStatus");
+  status.hidden = false; $("aiImg").hidden = true; $("aiUse").hidden = true;
+  status.innerHTML = '<span class="spin"></span>' + aiName() + ' is thinking about the picture…';
+  $("aiGo").disabled = true; $("aiStop").hidden = false;
+  try {
+    const { text } = await askAI(aiPrompt(desc, $("aiColor").checked), {
+      signal: aiCtl.signal, cache: false,
+      onText: ({ text }) => { status.innerHTML = `<span class="spin"></span>Drawing… ${Math.round(text.length / 100) / 10}k characters of SVG`; },
+    });
+    const clean = sanitizeSvg(text);
+    if (!clean) throw { code: "bad_svg" };
+    aiSvg = svgUrl(clean);
+    $("aiImg").src = aiSvg; $("aiImg").hidden = false; status.hidden = true;
+    $("aiUse").hidden = false; $("aiGo").textContent = "Try another";
+  } catch (e) {
+    const code = e && e.code;
+    status.textContent = aiError(e, "Press Draw it to try again.");
+    if (code === "not_granted" || code === "sampling_disabled") { sampleCap = null; updateAiButton(); }
+  } finally {
+    $("aiGo").disabled = false; $("aiStop").hidden = true;
+  }
+};
+$("aiUse").onclick = () => { if (aiSvg) setArt(aiSvg); closeModal("aiModal"); };
+
+// ---------- export ----------
+async function renderExport(dpi) {
+  await allReady();
+  const P = PAPERS[state.paper], k = dpi / 25.4;
+  const c = document.createElement("canvas");
+  c.width = Math.round(P.w * k); c.height = Math.round(P.h * k);
+  renderSheet(c.getContext("2d"), k);
+  return c;
+}
+const toBlob = (c, type, q) => new Promise((res) => c.toBlob(res, type, q));
+function fileBase() {
+  const t = state.pages[0].title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return (t || "tiny-book") + "-" + state.paper;
+}
+async function offer(name, blob, canvas) {
+  if (downloadsCap) {
+    try { await downloadsCap.save({ filename: name, data: blob }); toast("Saved " + name); }
+    catch (e) {
+      if (e && e.code === "declined") toast("Save cancelled");
+      else if (e && e.code === "rate_limited") toast("A save is already waiting for you");
+      else showFallback(canvas);
+    }
+    return;
+  }
+  if (!window.claude) {           // opened as a plain file outside claude.ai
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    return;
+  }
+  showFallback(canvas);
+}
+function showFallback(canvas) {
+  $("fbImg").src = canvas.toDataURL("image/png");
+  openModal("fbModal");
+}
+$("fbClose").onclick = () => closeModal("fbModal");
+$("btnFold").onclick = () => openModal("foldModal");
+$("foldClose").onclick = () => closeModal("foldModal");
+async function busy(btn, label, fn) {
+  const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>${label}`;
+  try { await fn(); } catch (e) { toast("Could not make the file"); console.error(e); }
+  finally { btn.disabled = false; btn.innerHTML = old; }
+}
+$("btnPdf").onclick = () => busy($("btnPdf"), "Making the PDF…", async () => {
+  const c = await renderExport(250);
+  const P = PAPERS[state.paper];
+  if (!window.jspdf) { await offer(fileBase() + ".png", await toBlob(c, "image/png"), c); toast("PDF maker didn't load, so here is a picture"); return; }
+  const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: state.paper === "a4" ? "a4" : "letter" });
+  doc.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, P.w, P.h);
+  doc.setProperties({ title: state.pages[0].title || "Tiny book", creator: "Tiny Book Press" });
+  await offer(fileBase() + ".pdf", doc.output("blob"), c);
+});
+$("btnPng").onclick = () => busy($("btnPng"), "Making the picture…", async () => {
+  const c = await renderExport(250);
+  await offer(fileBase() + ".png", await toBlob(c, "image/png"), c);
+});
+
+// ---------- boot ----------
+syncOptions(); syncEditor(); updateAiButton(); drawPreview();
+fontsReady.then(drawPreview);
+if (document.fonts) document.fonts.ready.then(drawPreview);
+</script>
