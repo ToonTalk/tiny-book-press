@@ -419,13 +419,15 @@ textarea { resize: vertical; min-height: 64px; }
         <button type="button" data-p="anthropic">Claude</button>
         <button type="button" data-p="gemini">Gemini</button>
         <button type="button" data-p="openai">ChatGPT</button>
+        <button type="button" data-p="nano" id="setNanoBtn" hidden>Gemini Nano</button>
       </div>
     </div>
-    <div class="field">
+    <p class="note" id="setNanoNote" hidden>Gemini Nano runs inside Chrome on this computer: no key, no cost, and nothing you type leaves the computer. It is small, so its drawings and stamps are simpler, and it can't paint pictures. The first time, Chrome downloads it, which can take a few minutes.</p>
+    <div class="field" id="setKeyRow">
       <label for="setKey" id="setKeyLabel">Anthropic API key</label>
       <input type="password" id="setKey" autocomplete="off" spellcheck="false">
     </div>
-    <div class="row">
+    <div class="row" id="setModelRow">
       <div class="field" style="flex:1;min-width:180px">
         <label for="setModel">Model for line drawings</label>
         <input type="text" id="setModel" list="modelChoices" spellcheck="false">
@@ -442,8 +444,8 @@ textarea { resize: vertical; min-height: 64px; }
       <datalist id="imgChoices"></datalist>
       <span class="note" id="setImgNote"></span>
     </div>
-    <label class="check"><input type="checkbox" id="setRemember"> Remember my keys in this browser</label>
-    <p class="note">Keys go only to the company that made the AI, straight from this page, and are never saved in your book. Get a key at <a id="setKeyLink" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
+    <label class="check" id="setRememberRow"><input type="checkbox" id="setRemember"> Remember my keys in this browser</label>
+    <p class="note" id="setKeyNote">Keys go only to the company that made the AI, straight from this page, and are never saved in your book. Get a key at <a id="setKeyLink" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
     <div class="row" style="justify-content:flex-end">
       <button id="setForget" type="button">Clear this key</button>
       <button class="primary" id="setSave" type="button">Save</button>
@@ -1246,7 +1248,7 @@ async function makeStamp() {
       const r = await askImage(paintStampPrompt(what, $("drawColor").checked), { aspect: 1, transparent: true, signal: stamp.ctl.signal });
       url = await shrinkArt(await clearWhite(r.url), 400);   // also when a model ignored the request for transparency
     } else {
-      const { text } = await askAI(stampPrompt(what, $("drawColor").checked), { signal: stamp.ctl.signal, modelTier: "quick" });
+      const { text } = await askAI(stampPrompt(what, $("drawColor").checked), { signal: stamp.ctl.signal, modelTier: "quick", onStatus: (t) => { status.innerHTML = '<span class="spin"></span>' + t; } });
       const clean = sanitizeSvg(text);
       if (!clean) throw { code: "bad_svg" };
       url = svgUrl(clean);
@@ -1353,15 +1355,18 @@ const PROVIDERS = {
     imgChoices: [["gpt-image-2.5-flare", "GPT Image 2.5 Flare · fast"], ["gpt-image-2.5-sunburst", "GPT Image 2.5 Sunburst"], ["gpt-image-2", "GPT Image 2"], ["gpt-image-1.5", "GPT Image 1.5"]],
     choices: [["gpt-6-luna", "GPT-6 Luna · fastest"], ["gpt-5.6-terra", "GPT-5.6 Terra"], ["gpt-6.1-sol", "GPT-6.1 Sol"], ["gpt-6-astra", "GPT-6 Astra · strongest"]],
   },
+  // Chrome's built-in model: no key, runs on this computer (desktop Chrome only).
+  nano: { name: "Gemini Nano", company: "Chrome", local: true, pic: "", stamp: "", choices: [] },
 };
 function freshAi() {
   const models = {};
   for (const [id, P] of Object.entries(PROVIDERS)) models[id] = { pic: P.pic, stamp: P.stamp, img: P.img || "" };
   return { provider: "anthropic", keys: { anthropic: "", gemini: "", openai: "" }, models, remember: false, paint: true };
 }
-let ai = freshAi();
+let ai = freshAi(), hadSettings = false;
 try {
   const a = JSON.parse(localStorage.getItem(AI_STORE));
+  if (a) hadSettings = true;
   if (a && PROVIDERS[a.provider]) ai.provider = a.provider;
   if (a && a.paint === false) ai.paint = false;
   if (a && a.models) for (const id in PROVIDERS) Object.assign(ai.models[id], a.models[id] || {});
@@ -1375,15 +1380,64 @@ try {
   }
 } catch (e) {}
 function aiKey() { return ai.keys[ai.provider] || ""; }
-function aiReady() { return !!sampleCap || !!aiKey(); }
+function nanoReady() { return ai.provider === "nano" && !!nanoApi() && nanoState !== "unavailable"; }
+function aiReady() { return !!sampleCap || !!aiKey() || nanoReady(); }
 function aiName() { return sampleCap ? "Claude" : PROVIDERS[ai.provider].name; }
 function updateAiButton() {
   const note = $("aiNote"), name = aiName();
-  $("btnClaude").textContent = sampleCap ? "AI: Claude (your account)" : aiKey() ? "AI: " + name : "AI: add a key";
+  $("btnClaude").textContent = sampleCap ? "AI: Claude (your account)" : aiKey() || nanoReady() ? "AI: " + name : "AI: add a key";
   $("askLabel").textContent = "Ask " + name;
   if (!capsKnown) { $("btnAsk").disabled = true; note.textContent = "Checking whether an AI can draw here…"; return; }
   $("btnAsk").disabled = !aiReady();
   note.textContent = aiReady() ? "" : "To ask an AI for pictures, open this app on claude.ai or add a key in AI settings.";
+}
+
+// ---------- Gemini Nano, built into desktop Chrome ----------
+const nanoApi = () => (typeof window.LanguageModel !== "undefined" && window.LanguageModel && typeof window.LanguageModel.create === "function" ? window.LanguageModel : null);
+const NANO_OPTIONS = { expectedInputs: [{ type: "text", languages: ["en"] }], expectedOutputs: [{ type: "text", languages: ["en"] }] };
+let nanoState = "unavailable";   // Chrome's word: unavailable, downloadable, downloading or available
+async function checkNano() {
+  const LM = nanoApi();
+  if (!LM) return;
+  try { nanoState = await LM.availability(NANO_OPTIONS); } catch (e) { nanoState = "unavailable"; }
+  if (nanoState === "unavailable") return;
+  $("setNanoBtn").hidden = false;
+  // Someone with no keys and no saved choice gets Nano straight away.
+  if (!hadSettings && !Object.values(ai.keys).some(Boolean)) ai.provider = "nano";
+  updateAiButton();
+}
+async function askNano(prompt, opts = {}) {
+  const LM = nanoApi();
+  if (!LM || nanoState === "unavailable") throw { code: "no_nano" };
+  const aborted = () => opts.signal && opts.signal.aborted;
+  // Chrome reports progress even when the model is already there, so only say so while it really downloads.
+  const downloading = nanoState !== "available";
+  let session;
+  try {
+    session = await LM.create({
+      ...NANO_OPTIONS, signal: opts.signal,
+      monitor(m) { m.addEventListener("downloadprogress", (e) => { if (downloading && e.loaded < 1 && opts.onStatus) opts.onStatus("Chrome is downloading Gemini Nano: " + Math.round(e.loaded * 100) + "%"); }); },
+    });
+  } catch (e) { throw { code: aborted() ? "cancelled" : "nano_failed", message: (e && e.message) || "" }; }
+  nanoState = "available";
+  try {
+    let text = "";
+    if (typeof session.promptStreaming === "function") {
+      const reader = session.promptStreaming(prompt, { signal: opts.signal }).getReader();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = String(value);
+        text = text && chunk.startsWith(text) ? chunk : text + chunk;   // older Chrome sent the whole answer each time
+        if (opts.onText) opts.onText({ text });
+      }
+    } else text = String(await session.prompt(prompt, { signal: opts.signal }));
+    if (!text.trim()) throw { code: "empty_completion" };
+    return { text };
+  } catch (e) {
+    if (e && e.code) throw e;
+    throw { code: aborted() ? "cancelled" : "nano_failed", message: (e && e.message) || "" };
+  } finally { try { session.destroy(); } catch (e) {} }
 }
 async function postJson(url, headers, body, signal) {
   let res, j = null;
@@ -1402,7 +1456,8 @@ async function postJson(url, headers, body, signal) {
   return j || {};
 }
 async function askAI(prompt, opts = {}) {
-  if (sampleCap) return sampleCap(prompt, opts);
+  if (sampleCap) { const { onStatus, ...rest } = opts; return sampleCap(prompt, rest); }
+  if (ai.provider === "nano") return askNano(prompt, opts);
   const key = aiKey();
   if (!key) throw { code: "no_key" };
   const P = PROVIDERS[ai.provider], m = ai.models[ai.provider];
@@ -1514,6 +1569,8 @@ function aiError(e, again) {
   if (code === "bad_svg") return "That didn't come back as a picture. " + again;
   if (code === "api_error") return name + " sent back an error" + (e.message ? ": " + e.message : ".");
   if (code === "no_image") return name + " didn't send back a picture. " + again;
+  if (code === "no_nano") return "Gemini Nano isn't available in this browser. It needs desktop Chrome with its built-in AI.";
+  if (code === "nano_failed") return "Gemini Nano couldn't answer" + (e.message ? ": " + e.message : ".") + " " + again;
   const T = {
     not_granted: "Claude isn't allowed to draw for this page. You can allow it from the artifact's Permissions menu.",
     sampling_disabled: "Claude isn't available for this account.",
@@ -1543,6 +1600,7 @@ function openSettings() {
 }
 function readDraft() {
   const id = draftAi.provider;
+  if (PROVIDERS[id].local) return;
   draftAi.keys[id] = $("setKey").value.trim();
   draftAi.models[id] = { pic: $("setModel").value.trim() || PROVIDERS[id].pic, stamp: $("setStampModel").value.trim() || PROVIDERS[id].stamp, img: PROVIDERS[id].img ? ($("setImgModel").value.trim() || PROVIDERS[id].img) : "" };
 }
@@ -1551,6 +1609,9 @@ function showProvider(id) {
   draftAi.provider = id;
   const P = PROVIDERS[id];
   for (const b of $("setProviders").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.p === id));
+  for (const el of ["setKeyRow", "setModelRow", "setRememberRow", "setKeyNote", "setForget"]) $(el).hidden = !!P.local;
+  $("setNanoNote").hidden = !P.local;
+  if (P.local) { $("setImgRow").hidden = true; $("setKey").dataset.provider = id; showStatus(); return; }
   $("setKeyLabel").textContent = P.company + " API key";
   $("setKey").placeholder = P.hint; $("setKey").value = draftAi.keys[id] || ""; $("setKey").dataset.provider = id;
   $("setModel").value = draftAi.models[id].pic; $("setStampModel").value = draftAi.models[id].stamp;
@@ -1563,11 +1624,16 @@ function showProvider(id) {
     $("setImgNote").textContent = P.name + " can paint real pictures. Ask and stamps offer them as Painted.";
   }
   $("setKeyLink").href = P.keyUrl; $("setKeyLink").textContent = P.keySite;
+  showStatus();
+}
+function showStatus() {
   $("setStatus").textContent = sampleCap
     ? "On this page pictures come from Claude on your claude.ai account, so no key is needed. A key is used when the app is opened outside claude.ai."
-    : IN_CLAUDE
-      ? "No AI is available on this claude.ai page, and pages on claude.ai can't use a key. Keys work when you open this app's file directly in a browser."
-      : "Pictures and stamps come from the AI you pick here, with your own key.";
+    : draftAi && draftAi.provider === "nano"
+      ? "Pictures and stamps come from Gemini Nano, built into Chrome."
+      : IN_CLAUDE
+        ? "No AI with a key works on this claude.ai page. Keys work at toontalk.github.io/tiny-book-press."
+        : "Pictures and stamps come from the AI you pick here, with your own key.";
 }
 $("setProviders").querySelectorAll("button").forEach((b) => (b.onclick = () => showProvider(b.dataset.p)));
 $("btnClaude").onclick = openSettings;
@@ -1582,7 +1648,7 @@ $("setSave").onclick = () => {
     else localStorage.removeItem(KEY_STORE);
   } catch (e) {}
   closeModal("settingsModal"); updateAiButton();
-  toast(aiKey() ? "Using " + aiName() + (ai.remember ? ", key saved in this browser" : " until you close the page") : "Settings saved");
+  toast(nanoReady() ? "Using Gemini Nano in Chrome" : aiKey() ? "Using " + aiName() + (ai.remember ? ", key saved in this browser" : " until you close the page") : "Settings saved");
 };
 $("setForget").onclick = () => {
   draftAi.keys[draftAi.provider] = ""; $("setKey").value = "";
@@ -1599,6 +1665,7 @@ $("setForget").onclick = () => {
   }
   capsKnown = true; updateAiButton();
 })();
+checkNano();
 
 let aiCtl = null, aiSvg = null;
 function aiPrompt(desc, color) {
@@ -1683,6 +1750,7 @@ $("aiGo").onclick = async () => {
   try {
     const { text } = await askAI(aiPrompt(desc, $("aiColor").checked), {
       signal: aiCtl.signal, cache: false,
+      onStatus: (t) => { status.innerHTML = '<span class="spin"></span>' + t; },
       onText: ({ text }) => { status.innerHTML = `<span class="spin"></span>Drawing… ${Math.round(text.length / 100) / 10}k characters of SVG`; },
     });
     const clean = sanitizeSvg(text);

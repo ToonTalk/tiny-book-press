@@ -10,6 +10,7 @@ Each page has a heading, some words and a picture. A picture can be:
 - **asked for** from an AI (Claude, Gemini or ChatGPT, with your own API key):
   with a Gemini or ChatGPT key it can be **painted** by their image models,
   otherwise it is drawn as shapes (SVG),
+  and in desktop Chrome, Gemini Nano (built into the browser) needs no key at all,
 - **drawn** in the built-in drawing program, in black and grays or in color,
   with stamps the AI makes for you that you can move, resize and turn.
 
