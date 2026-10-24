@@ -1,6 +1,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tiny Book Press</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232b5246'/%3E%3Cpath d='M32 15 L10 19 V51 L32 47Z' fill='%23fff'/%3E%3Cpath d='M32 15 L54 19 V51 L32 47Z' fill='%23e4572e'/%3E%3Cpath d='M15 27 L27 25 M15 33 L27 31 M15 39 L23 38' stroke='%232b5246' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='43' cy='33' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -234,12 +235,14 @@ textarea { resize: vertical; min-height: 64px; }
       <div class="tabs" role="tablist" id="tabs"></div>
       <h2 id="edHead">Page 1</h2>
       <div class="field">
-        <label for="edTitle">Heading</label>
+        <div class="label-row"><label for="edTitle">Heading</label><span data-mic-for="edTitle"></span></div>
         <input type="text" id="edTitle" maxlength="80" placeholder="Hello, dot.">
       </div>
       <div class="field">
         <div class="label-row">
           <label for="edText">Words</label>
+          <span style="flex:1"></span>
+          <span data-mic-for="edText"></span>
           <div class="seg" role="group" aria-label="Line up the words">
             <button id="alCenter" type="button">Centered</button>
             <button id="alLeft" type="button">Left</button>
@@ -338,6 +341,7 @@ textarea { resize: vertical; min-height: 64px; }
             <input type="text" id="stampWhat" maxlength="60" placeholder="A heart, a star, a little cat…" aria-label="What stamp should the AI make?">
             <span data-mic-for="stampWhat"></span>
             <button class="primary" id="stampMake" type="button">Make stamp</button>
+            <label class="check" id="stampPaintRow" hidden><input type="checkbox" id="stampPaint"> Painted</label>
           </div>
           <div class="chips" id="stampChips"></div>
           <div class="row">
@@ -368,6 +372,14 @@ textarea { resize: vertical; min-height: 64px; }
     <div class="row">
       <label class="check"><input type="checkbox" id="aiColor"> In color</label>
       <span class="note" id="aiStyleNote">Off: black outlines you can color in by hand.</span>
+    </div>
+    <div class="row" id="aiKindRow" hidden>
+      <span class="note">Kind of picture:</span>
+      <div class="seg" role="group" aria-label="Kind of picture">
+        <button id="kindPaint" type="button">Painted</button>
+        <button id="kindSvg" type="button">Line drawing</button>
+      </div>
+      <span class="note" id="aiKindNote"></span>
     </div>
     <div class="ai-preview" id="aiPreview"><div class="ai-status" id="aiStatus">Describe a picture, then press Draw it.</div><img id="aiImg" alt="Claude's drawing" hidden></div>
     <div class="row" style="justify-content:flex-end">
@@ -415,15 +427,21 @@ textarea { resize: vertical; min-height: 64px; }
     </div>
     <div class="row">
       <div class="field" style="flex:1;min-width:180px">
-        <label for="setModel">Model for pictures</label>
+        <label for="setModel">Model for line drawings</label>
         <input type="text" id="setModel" list="modelChoices" spellcheck="false">
       </div>
       <div class="field" style="flex:1;min-width:180px">
-        <label for="setStampModel">Model for stamps</label>
+        <label for="setStampModel">Model for line-drawn stamps</label>
         <input type="text" id="setStampModel" list="modelChoices" spellcheck="false">
       </div>
     </div>
     <datalist id="modelChoices"></datalist>
+    <div class="field" id="setImgRow">
+      <label for="setImgModel">Model for painted pictures</label>
+      <input type="text" id="setImgModel" list="imgChoices" spellcheck="false">
+      <datalist id="imgChoices"></datalist>
+      <span class="note" id="setImgNote"></span>
+    </div>
     <label class="check"><input type="checkbox" id="setRemember"> Remember my keys in this browser</label>
     <p class="note">Keys go only to the company that made the AI, straight from this page, and are never saved in your book. Get a key at <a id="setKeyLink" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
     <div class="row" style="justify-content:flex-end">
@@ -527,11 +545,11 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 // Pictures larger than print needs are shrunk: 900 px across a picture about 63 mm wide
 // is over 350 dpi, more than a home printer uses.
 const ART_MAX = 900;
-async function shrinkArt(url) {
+async function shrinkArt(url, max = ART_MAX) {
   if (!url || !/^data:image\/(png|jpeg|webp|gif)/.test(url)) return url;
   const e = getImg(url); await e.p;
   if (!e.ok) return url;
-  const w = e.im.naturalWidth, h = e.im.naturalHeight, sc = Math.min(1, ART_MAX / Math.max(w, h));
+  const w = e.im.naturalWidth, h = e.im.naturalHeight, sc = Math.min(1, max / Math.max(w, h));
   if (sc === 1 && url.length < 400000) return url;
   const c = document.createElement("canvas");
   c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
@@ -1128,6 +1146,7 @@ function updateStampUi() {
   const has = !!stamp.pend;
   $("stampApply").hidden = !has; $("stampDrop").hidden = !has;
   $("stampMake").disabled = !aiReady() || !!stamp.ctl;
+  $("stampPaintRow").hidden = !imageReady(); $("stampPaint").checked = painting();
   if (!aiReady() && !stamp.ctl) $("stampStatus").textContent = "Making new stamps needs an AI: open this app on claude.ai, or add a key in AI settings.";
   fitDraw();
 }
@@ -1221,10 +1240,18 @@ async function makeStamp() {
   status.innerHTML = '<span class="spin"></span>' + aiName() + ' is making a stamp of ' + what.replace(/[<&]/g, "") + "…";
   updateStampUi();
   try {
-    const { text } = await askAI(stampPrompt(what, $("drawColor").checked), { signal: stamp.ctl.signal, modelTier: "quick" });
-    const clean = sanitizeSvg(text);
-    if (!clean) throw { code: "bad_svg" };
-    const s = { name: what, url: svgUrl(clean) };
+    let url;
+    if (painting()) {
+      status.innerHTML = '<span class="spin"></span>' + aiName() + " is painting a stamp of " + what.replace(/[<&]/g, "") + "…";
+      const r = await askImage(paintStampPrompt(what, $("drawColor").checked), { aspect: 1, transparent: true, signal: stamp.ctl.signal });
+      url = await shrinkArt(await clearWhite(r.url), 400);   // also when a model ignored the request for transparency
+    } else {
+      const { text } = await askAI(stampPrompt(what, $("drawColor").checked), { signal: stamp.ctl.signal, modelTier: "quick" });
+      const clean = sanitizeSvg(text);
+      if (!clean) throw { code: "bad_svg" };
+      url = svgUrl(clean);
+    }
+    const s = { name: what, url };
     state.stamps = [s, ...(state.stamps || []).filter((x) => x.name !== what)].slice(0, 12);
     save();
     stamp.ctl = null;
@@ -1316,24 +1343,27 @@ const PROVIDERS = {
   },
   gemini: {
     name: "Gemini", company: "Google", hint: "AIza…", keyUrl: "https://aistudio.google.com/app/apikey", keySite: "aistudio.google.com",
-    pic: "gemini-3.8-flash", stamp: "gemini-3.5-flash-lite",
+    pic: "gemini-3.8-flash", stamp: "gemini-3.5-flash-lite", img: "gemini-nano-banana-2.1",
+    imgChoices: [["gemini-3.1-flash-lite-image", "Nano Banana 2 Lite · fastest, cheapest"], ["gemini-nano-banana-2.1", "Nano Banana 2.1"], ["gemini-3-pro-image", "Nano Banana Pro · best"]],
     choices: [["gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite · fastest"], ["gemini-3.8-flash", "Gemini 3.8 Flash"], ["gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview) · strongest"]],
   },
   openai: {
     name: "ChatGPT", company: "OpenAI", hint: "sk-…", keyUrl: "https://platform.openai.com/api-keys", keySite: "platform.openai.com",
-    pic: "gpt-6.1-sol", stamp: "gpt-6-luna",
+    pic: "gpt-6.1-sol", stamp: "gpt-6-luna", img: "gpt-image-2.5-flare",
+    imgChoices: [["gpt-image-2.5-flare", "GPT Image 2.5 Flare · fast"], ["gpt-image-2.5-sunburst", "GPT Image 2.5 Sunburst"], ["gpt-image-2", "GPT Image 2"], ["gpt-image-1.5", "GPT Image 1.5"]],
     choices: [["gpt-6-luna", "GPT-6 Luna · fastest"], ["gpt-5.6-terra", "GPT-5.6 Terra"], ["gpt-6.1-sol", "GPT-6.1 Sol"], ["gpt-6-astra", "GPT-6 Astra · strongest"]],
   },
 };
 function freshAi() {
   const models = {};
-  for (const [id, P] of Object.entries(PROVIDERS)) models[id] = { pic: P.pic, stamp: P.stamp };
-  return { provider: "anthropic", keys: { anthropic: "", gemini: "", openai: "" }, models, remember: false };
+  for (const [id, P] of Object.entries(PROVIDERS)) models[id] = { pic: P.pic, stamp: P.stamp, img: P.img || "" };
+  return { provider: "anthropic", keys: { anthropic: "", gemini: "", openai: "" }, models, remember: false, paint: true };
 }
 let ai = freshAi();
 try {
   const a = JSON.parse(localStorage.getItem(AI_STORE));
   if (a && PROVIDERS[a.provider]) ai.provider = a.provider;
+  if (a && a.paint === false) ai.paint = false;
   if (a && a.models) for (const id in PROVIDERS) Object.assign(ai.models[id], a.models[id] || {});
   if (a && a.model && !a.models) ai.models.anthropic.pic = a.model;          // the one-provider settings of version 3
 } catch (e) {}
@@ -1365,7 +1395,7 @@ async function postJson(url, headers, body, signal) {
   if (!res.ok) {
     const err = j && (Array.isArray(j) ? j[0] && j[0].error : j.error);
     const msg = (err && err.message) || "";
-    const code = res.status === 401 || res.status === 403 || /api.?key/i.test(msg) ? "bad_key" : res.status === 429 ? "rate_limited"
+    const code = /verif/i.test(msg) ? "api_error" : res.status === 401 || res.status === 403 || /api.?key/i.test(msg) ? "bad_key" : res.status === 429 ? "rate_limited"
       : res.status >= 500 ? "upstream_error" : res.status === 404 || /model/i.test(msg) ? "bad_model" : "api_error";
     throw { code, message: msg };
   }
@@ -1401,11 +1431,89 @@ async function askAI(prompt, opts = {}) {
   if (!text.trim()) throw { code: "empty_completion" };
   return { text };
 }
+// Painted pictures: Gemini and ChatGPT keys can ask an image model instead of drawing SVG.
+function imageReady() { return !sampleCap && !!aiKey() && !!PROVIDERS[ai.provider].img; }
+function imgModel() { return (ai.models[ai.provider].img || "").trim() || PROVIDERS[ai.provider].img; }
+async function askImage(prompt, opts = {}) {
+  const key = aiKey(), model = imgModel(), aspect = opts.aspect || 1;
+  if (ai.provider === "gemini") {
+    const RATIOS = ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
+    const ratio = RATIOS.reduce((best, r) => { const [a, b] = r.split(":").map(Number); return Math.abs(Math.log(a / b / aspect)) < Math.abs(Math.log(best.v / aspect)) ? { r, v: a / b } : best; }, { r: "1:1", v: 1 }).r;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
+    const body = (withRatio) => ({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: Object.assign({ responseModalities: ["IMAGE"] }, withRatio ? { imageConfig: { aspectRatio: ratio } } : {}) });
+    let j;
+    try { j = await postJson(url, { "x-goog-api-key": key }, body(true), opts.signal); }
+    catch (e) { if (e.code !== "api_error") throw e; j = await postJson(url, { "x-goog-api-key": key }, body(false), opts.signal); }   // an older model without imageConfig
+    const parts = (((j.candidates || [])[0] || {}).content || {}).parts || [];
+    const part = parts.find((x) => x.inlineData || x.inline_data);
+    if (!part) throw { code: "no_image" };
+    const d = part.inlineData || part.inline_data;
+    return { url: "data:" + (d.mimeType || d.mime_type || "image/png") + ";base64," + d.data, clear: false };
+  }
+  // OpenAI's Image API: three safe sizes; a transparent background where asked.
+  const size = aspect > 1.25 ? "1536x1024" : aspect < 0.8 ? "1024x1536" : "1024x1024";
+  const body = { model, prompt, size, n: 1, quality: "medium" };
+  if (opts.transparent) Object.assign(body, { background: "transparent", output_format: "png" });
+  else body.output_format = "jpeg";
+  let j;
+  try { j = await postJson("https://api.openai.com/v1/images/generations", { Authorization: "Bearer " + key }, body, opts.signal); }
+  catch (e) {
+    if (e.code !== "api_error" || !opts.transparent) throw e;
+    delete body.background;   // a model without transparent backgrounds
+    j = await postJson("https://api.openai.com/v1/images/generations", { Authorization: "Bearer " + key }, body, opts.signal);
+  }
+  const item = (j.data || [])[0] || {};
+  if (!item.b64_json) throw { code: "no_image" };
+  return { url: "data:image/" + (body.output_format || "png") + ";base64," + item.b64_json, clear: !!body.background };
+}
+// Make a plain white background see-through, starting from the edges, so a painted stamp sits on the drawing.
+async function clearWhite(url) {
+  const e = getImg(url); await e.p;
+  if (!e.ok) return url;
+  const w = e.im.naturalWidth, h = e.im.naturalHeight, c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const x = c.getContext("2d"); x.drawImage(e.im, 0, 0);
+  const id = x.getImageData(0, 0, w, h), d = id.data, seen = new Uint8Array(w * h), stack = [];
+  const whiteish = (j) => d[j * 4] > 232 && d[j * 4 + 1] > 232 && d[j * 4 + 2] > 232;
+  for (let i = 0; i < w; i++) stack.push(i, (h - 1) * w + i);
+  for (let i = 0; i < h; i++) stack.push(i * w, i * w + w - 1);
+  while (stack.length) {
+    const j = stack.pop();
+    if (seen[j] || !whiteish(j)) continue;
+    seen[j] = 1; d[j * 4 + 3] = 0;
+    const px = j % w;
+    if (px > 0) stack.push(j - 1); if (px < w - 1) stack.push(j + 1);
+    if (j >= w) stack.push(j - w); if (j < w * (h - 1)) stack.push(j + w);
+  }
+  x.putImageData(id, 0, 0);
+  return c.toDataURL("image/png");
+}
+function paintPrompt(desc, color) {
+  const pg = page(), book = state.pages[0].title.trim();
+  const words = [pg.title, pg.text].map((t) => t.trim()).filter(Boolean).join(" / ");
+  return [
+    `A picture for page ${sel} of a small children's book${book ? ` called "${book}"` : ""}. It will be printed small (about ${artMm(sel)}) on a home printer.`,
+    words ? `The words on this page are: "${words}".` : "",
+    `The picture shows: ${desc}`,
+    color ? "Style: a bright, friendly children's book illustration with clear shapes, on a white background."
+      : "Style: black and white line art like a coloring-book page: clean bold black outlines on a pure white background, no gray, no shading, no color.",
+    "Keep it simple and easy to read at a small size. No words, letters or numbers in the picture.",
+  ].filter(Boolean).join("\n");
+}
+function paintStampPrompt(what, color) {
+  return [
+    `A single sticker for a children's drawing program: ${what}.`,
+    "Centered, filling most of the square, with nothing else around it, on a plain pure white background.",
+    color ? "Bright, friendly colors with a dark outline." : "Black and white only: bold black shapes and outlines, no gray, no color.",
+    "Bold and simple so it is recognizable when small. No words, letters or numbers.",
+  ].join("\n");
+}
 function aiError(e, again) {
   const code = e && e.code, name = aiName();
   if (code === "cancelled") return "Stopped.";
   if (code === "bad_svg") return "That didn't come back as a picture. " + again;
   if (code === "api_error") return name + " sent back an error" + (e.message ? ": " + e.message : ".");
+  if (code === "no_image") return name + " didn't send back a picture. " + again;
   const T = {
     not_granted: "Claude isn't allowed to draw for this page. You can allow it from the artifact's Permissions menu.",
     sampling_disabled: "Claude isn't available for this account.",
@@ -1436,7 +1544,7 @@ function openSettings() {
 function readDraft() {
   const id = draftAi.provider;
   draftAi.keys[id] = $("setKey").value.trim();
-  draftAi.models[id] = { pic: $("setModel").value.trim() || PROVIDERS[id].pic, stamp: $("setStampModel").value.trim() || PROVIDERS[id].stamp };
+  draftAi.models[id] = { pic: $("setModel").value.trim() || PROVIDERS[id].pic, stamp: $("setStampModel").value.trim() || PROVIDERS[id].stamp, img: PROVIDERS[id].img ? ($("setImgModel").value.trim() || PROVIDERS[id].img) : "" };
 }
 function showProvider(id) {
   if ($("setKey").dataset.provider) readDraft();
@@ -1448,6 +1556,12 @@ function showProvider(id) {
   $("setModel").value = draftAi.models[id].pic; $("setStampModel").value = draftAi.models[id].stamp;
   $("setModel").placeholder = P.pic; $("setStampModel").placeholder = P.stamp;
   $("modelChoices").innerHTML = P.choices.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+  $("setImgRow").hidden = !P.img;
+  if (P.img) {
+    $("setImgModel").value = draftAi.models[id].img || P.img; $("setImgModel").placeholder = P.img;
+    $("imgChoices").innerHTML = P.imgChoices.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+    $("setImgNote").textContent = P.name + " can paint real pictures. Ask and stamps offer them as Painted.";
+  }
   $("setKeyLink").href = P.keyUrl; $("setKeyLink").textContent = P.keySite;
   $("setStatus").textContent = sampleCap
     ? "On this page pictures come from Claude on your claude.ai account, so no key is needed. A key is used when the app is opened outside claude.ai."
@@ -1463,7 +1577,7 @@ $("setSave").onclick = () => {
   draftAi.remember = $("setRemember").checked;
   ai = draftAi; $("setKey").dataset.provider = "";
   try {
-    localStorage.setItem(AI_STORE, JSON.stringify({ provider: ai.provider, models: ai.models }));
+    localStorage.setItem(AI_STORE, JSON.stringify({ provider: ai.provider, models: ai.models, paint: ai.paint }));
     if (ai.remember && Object.values(ai.keys).some(Boolean)) localStorage.setItem(KEY_STORE, JSON.stringify(ai.keys));
     else localStorage.removeItem(KEY_STORE);
   } catch (e) {}
@@ -1514,6 +1628,8 @@ function openAi() {
   }
   $("aiColor").checked = !!state.colorDefault;
   $("aiPreview").style.aspectRatio = String(artAspect(sel));
+  $("aiKindRow").hidden = !imageReady();
+  syncKind();
   aiStyleNote();
   aiSvg = null;
   $("aiImg").hidden = true; $("aiStatus").hidden = false;
@@ -1526,6 +1642,20 @@ function aiStyleNote() {
   $("aiStyleNote").textContent = $("aiColor").checked ? "On: a colored picture." : "Off: black outlines you can color in by hand.";
 }
 $("aiColor").onchange = () => { state.colorDefault = $("aiColor").checked; save(); aiStyleNote(); };
+function painting() { return imageReady() && ai.paint !== false; }
+function syncKind() {
+  $("kindPaint").setAttribute("aria-pressed", String(painting()));
+  $("kindSvg").setAttribute("aria-pressed", String(!painting()));
+  $("aiKindNote").textContent = painting() ? "Made by " + imgModel() + "." : "Drawn as shapes by " + ai.models[ai.provider].pic + ".";
+}
+function setPaint(on) {
+  ai.paint = on;
+  try { const a = JSON.parse(localStorage.getItem(AI_STORE) || "{}"); a.paint = on; localStorage.setItem(AI_STORE, JSON.stringify(a)); } catch (e) {}
+  syncKind(); $("stampPaint").checked = on;
+}
+$("kindPaint").onclick = () => setPaint(true);
+$("kindSvg").onclick = () => setPaint(false);
+$("stampPaint").onchange = () => setPaint($("stampPaint").checked);
 function closeAi() { aiCtl && aiCtl.abort(); closeModal("aiModal"); }
 $("aiClose").onclick = closeAi;
 $("aiStop").onclick = () => aiCtl && aiCtl.abort();
@@ -1537,8 +1667,19 @@ $("aiGo").onclick = async () => {
   aiCtl = new AbortController();
   const status = $("aiStatus");
   status.hidden = false; $("aiImg").hidden = true; $("aiUse").hidden = true;
-  status.innerHTML = '<span class="spin"></span>' + aiName() + ' is thinking about the picture…';
   $("aiGo").disabled = true; $("aiStop").hidden = false;
+  if (painting()) {
+    status.innerHTML = '<span class="spin"></span>' + aiName() + " is painting the picture. This can take up to a minute…";
+    try {
+      const { url } = await askImage(paintPrompt(desc, $("aiColor").checked), { aspect: artAspect(sel), signal: aiCtl.signal });
+      aiSvg = await shrinkArt(url);
+      $("aiImg").src = aiSvg; $("aiImg").hidden = false; status.hidden = true;
+      $("aiUse").hidden = false; $("aiGo").textContent = "Try another";
+    } catch (e) { status.textContent = aiError(e, "Press Draw it to try again."); }
+    finally { $("aiGo").disabled = false; $("aiStop").hidden = true; }
+    return;
+  }
+  status.innerHTML = '<span class="spin"></span>' + aiName() + ' is thinking about the picture…';
   try {
     const { text } = await askAI(aiPrompt(desc, $("aiColor").checked), {
       signal: aiCtl.signal, cache: false,

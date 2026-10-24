@@ -7,7 +7,9 @@ Turn one sheet of A4 or US Letter paper into an eight-page folded mini-book.
 Each page has a heading, some words and a picture. A picture can be:
 
 - **imported** from a file (or dropped onto a page of the sheet),
-- **asked for** from an AI (Claude, Gemini or ChatGPT, with your own API key),
+- **asked for** from an AI (Claude, Gemini or ChatGPT, with your own API key):
+  with a Gemini or ChatGPT key it can be **painted** by their image models,
+  otherwise it is drawn as shapes (SVG),
 - **drawn** in the built-in drawing program, in black and grays or in color,
   with stamps the AI makes for you that you can move, resize and turn.
 
