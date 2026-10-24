@@ -11,6 +11,11 @@ Each page has a heading, some words and a picture. A picture can be:
 - **drawn** in the built-in drawing program, in black and grays or in color,
   with stamps the AI makes for you that you can move, resize and turn.
 
+Type, or press the microphone and say, what picture or stamp you want.
+
+**My books** keeps books in this browser and can save a book to a file and open it
+again (or drop a book file on the sheet). The example book is there too.
+
 Download the sheet as a PDF, print it landscape at 100%, crease the dashed lines,
 cut the one solid line, and fold it into a book. "How to fold" in the app shows the steps.
 

@@ -172,12 +172,24 @@ textarea { resize: vertical; min-height: 64px; }
 .sizes button i { display: block; background: currentColor; border-radius: 50%; }
 .sizes button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 
-.ai-preview { aspect-ratio: 5 / 4; background: #fff; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; max-width: 100%; }
+.ai-preview { aspect-ratio: 5 / 4; max-height: 38vh; width: 100%; background: #fff; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; max-width: 100%; }
 .ai-preview img { width: 100%; height: 100%; object-fit: contain; }
 .ai-status { color: #5b6a64; font-weight: 700; font-size: 14px; text-align: center; padding: 18px; }
 .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
 @keyframes s { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.mic { min-width: 42px; justify-content: center; padding: 0 10px; }
+.mic.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(228, 87, 46, .25); } }
+@media (prefers-reduced-motion: reduce) { .mic.on { animation: none; } }
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+.shelf:empty::before { content: attr(data-empty); color: var(--muted); font-size: 14px; }
+.book { position: relative; display: grid; gap: 6px; }
+.book .open { display: grid; gap: 6px; padding: 8px; min-height: 0; border-radius: 10px; text-align: left; align-content: start; }
+.book .open img { width: 100%; aspect-ratio: 74 / 105; object-fit: cover; background: #fff; border: 1px solid var(--line); border-radius: 3px; }
+.book .open b { font: 600 14px/1.2 var(--font-display); }
+.book .open small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.book .del { position: absolute; top: 2px; right: 2px; min-height: 0; width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: 50%; font-size: 16px; }
 .fallback-img { width: 100%; border: 1px solid var(--line); background: #fff; }
 
 #toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px); }
@@ -211,10 +223,11 @@ textarea { resize: vertical; min-height: 64px; }
           Download PDF to print</button>
         <button id="btnPng" type="button">Download picture (PNG)</button>
         <span style="flex:1"></span>
-        <button id="btnExample" type="button">Load the example</button>
+        <button id="btnSaveBook" type="button">Save book</button>
+        <button id="btnBooks" type="button">My books</button>
         <button id="btnNew" type="button">Start a new book</button>
       </div>
-      <p id="storeWarn" class="warn" hidden>This book is too big to remember in this browser. Download the PDF before you close the page.</p>
+      <p id="storeWarn" class="warn" hidden>This browser won't keep this book. Use My books → Save to a file before you close the page.</p>
     </section>
 
     <section class="editor" aria-label="Page editor">
@@ -283,6 +296,23 @@ textarea { resize: vertical; min-height: 64px; }
   </div>
 </div>
 
+<!-- My books -->
+<div class="modal" id="booksModal" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="booksTitle" style="width:min(860px,100%)">
+    <div class="dialog-head"><h2 id="booksTitle">My books</h2><button class="x" id="booksClose" type="button" aria-label="Close">×</button></div>
+    <div class="row">
+      <button class="primary" id="shelfSave" type="button">Save this book</button>
+      <button id="fileSave" type="button">Save to a file</button>
+      <button id="fileOpen" type="button">Open a file</button>
+    </div>
+    <p class="note" id="shelfNote">Books you save stay in this browser. Save to a file to move a book to another computer.</p>
+    <h3>Saved books</h3>
+    <div class="shelf" id="shelf" data-empty="No saved books yet. Press Save this book."></div>
+    <h3>Examples</h3>
+    <div class="shelf" id="examples"></div>
+  </div>
+</div>
+
 <!-- Draw -->
 <div class="modal" id="drawModal" hidden>
   <div class="dialog wide" id="drawDialog" role="dialog" aria-modal="true" aria-labelledby="drawTitle">
@@ -306,6 +336,7 @@ textarea { resize: vertical; min-height: 64px; }
         <div class="stampbar" id="stampBar" hidden>
           <div class="row">
             <input type="text" id="stampWhat" maxlength="60" placeholder="A heart, a star, a little cat…" aria-label="What stamp should the AI make?">
+            <span data-mic-for="stampWhat"></span>
             <button class="primary" id="stampMake" type="button">Make stamp</button>
           </div>
           <div class="chips" id="stampChips"></div>
@@ -331,7 +362,7 @@ textarea { resize: vertical; min-height: 64px; }
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
     <div class="dialog-head"><h2 id="aiTitle">Ask Claude to draw page 1</h2><button class="x" id="aiClose" type="button" aria-label="Close">×</button></div>
     <div class="field">
-      <label for="aiPrompt">What should the picture show?</label>
+      <div class="label-row"><label for="aiPrompt">What should the picture show?</label><span data-mic-for="aiPrompt"></span></div>
       <textarea id="aiPrompt" maxlength="600" placeholder="A small house with a roof, a door and two windows"></textarea>
     </div>
     <div class="row">
@@ -428,7 +459,7 @@ function stepsText(paper) {
 function exampleBook() {
   const p = (title, text, art, align = "center") => ({ title, text, art, align });
   return {
-    v: 1, paper: "a4", guides: true, numbers: true, gray: false, colorDefault: false,
+    v: 1, id: newId(), paper: "a4", guides: true, numbers: true, gray: false, colorDefault: false, unsaved: false,
     pages: [
       p("A Dot's Big Adventure", "One sheet of paper.\nA whole little book.", ex(`${dot(90, 240, 16)}<path d="M90 240 C 130 110, 250 110, 270 220 S 380 330, 420 210"/><path d="M398 222 L420 210 L428 236"/>`)),
       p("Hello, dot.", "Every adventure starts somewhere.", ex(dot(250, 200, 20))),
@@ -441,19 +472,36 @@ function exampleBook() {
     ],
   };
 }
+const newId = () => "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const EXAMPLES = [{ name: "A Dot's Big Adventure", make: () => exampleBook() }];
+// Check and tidy a book from storage or a file; null if it isn't one.
+function normalizeBook(b) {
+  if (b && b.app === "tiny-book-press" && b.book) b = b.book;
+  if (!b || typeof b !== "object" || !Array.isArray(b.pages) || b.pages.length !== 8) return null;
+  const str = (x, n) => (typeof x === "string" ? x.slice(0, n) : "");
+  const img = (x) => (typeof x === "string" && /^data:image\//.test(x) ? x : null);
+  return {
+    v: 1, id: str(b.id, 40) || newId(), paper: PAPERS[b.paper] ? b.paper : "a4",
+    guides: b.guides !== false, numbers: b.numbers !== false, gray: !!b.gray, colorDefault: !!b.colorDefault,
+    pages: b.pages.map((pg) => ({ title: str(pg && pg.title, 80), text: str(pg && pg.text, 900), art: img(pg && pg.art), align: pg && pg.align === "left" ? "left" : "center" })),
+    stamps: (Array.isArray(b.stamps) ? b.stamps : []).filter((x) => x && img(x.url)).slice(0, 12).map((x) => ({ name: str(x.name, 60), url: x.url })),
+    unsaved: !!b.unsaved, t: +b.t || 0,
+  };
+}
 function blankBook(paper = "a4") {
   const b = exampleBook();
   b.paper = paper;
   b.pages = Array.from({ length: 8 }, () => ({ title: "", text: "", art: null, align: "center" }));
   b.pages[0].title = "My Little Book";
+  b.id = newId();
   return b;
 }
 
 // ---------- state ----------
 function load() {
   try {
-    const s = JSON.parse(localStorage.getItem(STORE));
-    if (s && s.v === 1 && Array.isArray(s.pages) && s.pages.length === 8 && PAPERS[s.paper]) return s;
+    const s = normalizeBook(JSON.parse(localStorage.getItem(STORE)));
+    if (s) return s;
   } catch (e) {}
   return null;
 }
@@ -462,13 +510,86 @@ let sel = 1;
 let saveTimer = 0;
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    let ok = true;
-    try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { ok = false; }
-    $("storeWarn").hidden = ok;
-  }, 400);
+  saveTimer = setTimeout(writeNow, 400);
 }
-function changed() { save(); drawPreview(); }
+function writeNow() {
+  saveTimer = 0;
+  state.t = Date.now();
+  let ok = true;
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { ok = false; }
+  // The browser database holds much more than localStorage, so it keeps big books too.
+  shelf.set("current", state).then(() => { $("storeWarn").hidden = true; }, () => { $("storeWarn").hidden = ok; });
+}
+// Don't lose the last few changes when the page closes.
+addEventListener("pagehide", () => { if (saveTimer) { clearTimeout(saveTimer); writeNow(); } });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && saveTimer) { clearTimeout(saveTimer); writeNow(); } });
+
+// Pictures larger than print needs are shrunk: 900 px across a picture about 63 mm wide
+// is over 350 dpi, more than a home printer uses.
+const ART_MAX = 900;
+async function shrinkArt(url) {
+  if (!url || !/^data:image\/(png|jpeg|webp|gif)/.test(url)) return url;
+  const e = getImg(url); await e.p;
+  if (!e.ok) return url;
+  const w = e.im.naturalWidth, h = e.im.naturalHeight, sc = Math.min(1, ART_MAX / Math.max(w, h));
+  if (sc === 1 && url.length < 400000) return url;
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+  const ctx = c.getContext("2d");
+  ctx.drawImage(e.im, 0, 0, c.width, c.height);
+  // Keep PNG only where see-through parts matter (drawings, stamps); photos become JPEG.
+  let clear = false;
+  if (!/^data:image\/jpeg/.test(url)) {
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 3; i < d.length; i += 28) if (d[i] < 250) { clear = true; break; }
+  }
+  const out = clear ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.88);
+  return out.length < url.length ? out : url;
+}
+// Shrink any oversized pictures already in the book (books made before pictures were capped).
+async function tidyArt() {
+  const b = state;
+  let saved = 0;
+  for (const pg of b.pages) {
+    if (!pg.art) continue;
+    const small = await shrinkArt(pg.art);
+    if (small !== pg.art && b === state) { saved += pg.art.length - small.length; pg.art = small; }
+  }
+  if (saved && b === state) { save(); syncEditor(); drawPreview(); }
+}
+function changed() { state.unsaved = true; save(); drawPreview(); }
+
+// ---------- the bookshelf: books saved in this browser (IndexedDB) ----------
+const shelf = (() => {
+  let dbp = null;
+  function open() {
+    if (!dbp) dbp = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open("tinybook", 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore("books", { keyPath: "id" }); r.result.createObjectStore("kv"); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        r.onblocked = () => rej(new Error("blocked"));
+      } catch (e) { rej(e); }
+    });
+    return dbp;
+  }
+  async function run(store, mode, fn) {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, mode), req = fn(t.objectStore(store));
+      t.oncomplete = () => res(req && req.result);
+      t.onerror = t.onabort = () => rej(t.error);
+    });
+  }
+  return {
+    all: () => run("books", "readonly", (st) => st.getAll()),
+    put: (rec) => run("books", "readwrite", (st) => st.put(rec)),
+    del: (id) => run("books", "readwrite", (st) => st.delete(id)),
+    get: (k) => run("kv", "readonly", (st) => st.get(k)),
+    set: (k, v) => run("kv", "readwrite", (st) => st.put(v, k)),
+  };
+})();
 
 // ---------- images & fonts ----------
 const imgCache = new Map();
@@ -703,6 +824,7 @@ sheet.addEventListener("drop", (e) => {
   e.preventDefault();
   const n = pageAt(e), f = e.dataTransfer.files[0];
   dropPage = 0;
+  if (f && /\.json$/i.test(f.name)) { drawPreview(); openBookFile(f); return; }
   select(n);
   if (f) importFile(f);
 });
@@ -776,12 +898,14 @@ function ask(o) {
 $("askNo").onclick = () => closeModal("askModal");
 $("askYes").onclick = () => { closeModal("askModal"); pendingAsk && pendingAsk.onYes(); };
 $("askAlt").onclick = () => { closeModal("askModal"); pendingAsk && pendingAsk.onAlt && pendingAsk.onAlt(); };
-$("btnNew").onclick = () => ask({ title: "Start a new book?", body: "This clears all eight pages. Download a PDF first if you want to keep this one.", yes: "Start over", onYes: () => {
-  state = blankBook(state.paper); sel = 1; syncOptions(); syncEditor(); changed();
-} });
-$("btnExample").onclick = () => ask({ title: "Load the example book?", body: "This replaces your pages with “A Dot's Big Adventure”.", yes: "Load the example", onYes: () => {
-  const p = state.paper; state = exampleBook(); setPaper(p); sel = 1; syncEditor(); changed();
-} });
+$("btnNew").onclick = () => {
+  const go = () => { const st = state.stamps; state = blankBook(state.paper); state.stamps = st; sel = 1; syncOptions(); syncEditor(); changed(); state.unsaved = false; save(); };
+  if (!state.unsaved) { go(); toast("A new book"); return; }
+  ask({
+    title: "Start a new book?", body: "This book has changes that aren't saved. Save it first if you want to come back to it.",
+    yes: "Start over", onYes: go, alt: "Save it first", onAlt: async () => { if (await saveToShelf()) go(); }, no: "Keep this book",
+  });
+};
 
 // ---------- modals & toast ----------
 function openModal(id) { $(id).hidden = false; }
@@ -794,6 +918,7 @@ document.addEventListener("keydown", (e) => {
     else if (!$("drawModal").hidden) requestCloseDraw();
     else if (!$("fbModal").hidden) closeModal("fbModal");
     else if (!$("foldModal").hidden) closeModal("foldModal");
+    else if (!$("booksModal").hidden) closeModal("booksModal");
   }
 });
 let toastTimer = 0;
@@ -838,18 +963,10 @@ async function importFile(f) {
       setArt(svgUrl(clean)); return;
     }
     if (!/^image\//.test(f.type)) { toast("That file is not a picture"); return; }
-    let url = await readUrl(f);
+    const url = await readUrl(f);
     const e = getImg(url); await e.p;
     if (!e.ok) throw new Error("decode");
-    const w = e.im.naturalWidth, h = e.im.naturalHeight, max = 1600;
-    const sc = Math.min(1, max / Math.max(w, h));
-    if (sc < 1 || f.size > 700000) {
-      const c = document.createElement("canvas");
-      c.width = Math.round(w * sc); c.height = Math.round(h * sc);
-      c.getContext("2d").drawImage(e.im, 0, 0, c.width, c.height);
-      url = /png|gif/.test(f.type) ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.88);
-    }
-    setArt(url);
+    setArt(await shrinkArt(url));
   } catch (err) { toast("Could not read that picture"); }
 }
 $("btnImport").onclick = () => {
@@ -1176,9 +1293,9 @@ function fitDraw() {
   renderStamp();
 }
 window.addEventListener("resize", fitDraw);
-$("drawSave").onclick = () => {
+$("drawSave").onclick = async () => {
   putAwayStamp(true);
-  setArt(canvasEmpty() ? null : dc.toDataURL("image/png"));
+  setArt(canvasEmpty() ? null : await shrinkArt(dc.toDataURL("image/png")));
   closeModal("drawModal");
 };
 document.addEventListener("keydown", (e) => {
@@ -1403,7 +1520,7 @@ function openAi() {
   $("aiStatus").textContent = "Describe a picture, then press Draw it.";
   $("aiUse").hidden = true; $("aiGo").textContent = "Draw it";
   openModal("aiModal");
-  $("aiPrompt").focus();
+  $("aiPrompt").focus(); $("aiPrompt").select();
 }
 function aiStyleNote() {
   $("aiStyleNote").textContent = $("aiColor").checked ? "On: a colored picture." : "Off: black outlines you can color in by hand.";
@@ -1500,8 +1617,158 @@ $("btnPng").onclick = () => busy($("btnPng"), "Making the picture…", async () 
   await offer(fileBase() + ".png", await toBlob(c, "image/png"), c);
 });
 
+// ---------- saving and opening books ----------
+function bookTitle(b) { return (b.pages[0].title || "").trim() || "Untitled book"; }
+// A small picture of the cover, drawn by the same code that prints it.
+async function coverThumb(b) {
+  await fontsReady;
+  await Promise.all(b.pages.filter((pg) => pg.art).map((pg) => getImg(pg.art).p));
+  const keep = state; state = b;
+  try {
+    const P = PAPERS[b.paper], k = 2.2, c = document.createElement("canvas");
+    c.width = Math.round(P.w / 4 * k); c.height = Math.round(P.h / 2 * k);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    renderPanel(ctx, b.pages[0], 1, c.width, c.height, k);
+    return c.toDataURL("image/jpeg", 0.85);
+  } finally { state = keep; }
+}
+function bookCopy() { const b = JSON.parse(JSON.stringify(state)); delete b.unsaved; delete b.t; return b; }
+async function saveToShelf() {
+  try {
+    const b = bookCopy();
+    await shelf.put({ id: b.id, title: bookTitle(b), savedAt: Date.now(), thumb: await coverThumb(b), book: b });
+    state.unsaved = false; save();
+    toast("Saved “" + bookTitle(b) + "” in My books");
+    if (!$("booksModal").hidden) renderShelf();
+    return true;
+  } catch (e) {
+    toast("This browser won't keep books here. Use Save to a file instead.");
+    return false;
+  }
+}
+function openBook(raw, label) {
+  const b = normalizeBook(raw);
+  if (!b) { toast("That isn't a Tiny Book Press book"); return; }
+  const go = () => {
+    const st = state.stamps || [];
+    b.stamps = [...b.stamps, ...st.filter((x) => !b.stamps.some((y) => y.name === x.name))].slice(0, 12);
+    state = b; sel = 1; syncOptions(); syncEditor(); drawPreview(); tidyArt();
+    state.unsaved = false; save();
+    closeModal("booksModal"); toast("Opened “" + (label || bookTitle(b)) + "”");
+  };
+  if (!state.unsaved) { go(); return; }
+  ask({
+    title: "Open this book?", body: "The book you have open has changes that aren't saved.",
+    yes: "Open it anyway", onYes: go, alt: "Save mine first", onAlt: async () => { if (await saveToShelf()) go(); }, no: "Cancel",
+  });
+}
+async function openBookFile(f) {
+  try { openBook(JSON.parse(await f.text())); } catch (e) { toast("That file isn't a book this app can open"); }
+}
+function bookCard(rec, onOpen, onDelete) {
+  const d = document.createElement("div"); d.className = "book";
+  const b = document.createElement("button"); b.type = "button"; b.className = "open";
+  const im = document.createElement("img"); im.alt = ""; im.src = rec.thumb || "";
+  const t = document.createElement("b"); t.textContent = rec.title;
+  b.append(im, t);
+  if (rec.savedAt) { const sm = document.createElement("small"); sm.textContent = new Date(rec.savedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); b.append(sm); }
+  b.onclick = onOpen;
+  d.append(b);
+  if (onDelete) {
+    const x = document.createElement("button"); x.type = "button"; x.className = "del"; x.textContent = "×";
+    x.setAttribute("aria-label", "Delete " + rec.title); x.onclick = onDelete;
+    d.append(x);
+  }
+  return d;
+}
+async function renderShelf() {
+  const box = $("shelf"); box.innerHTML = "";
+  let recs = [];
+  try { recs = await shelf.all(); } catch (e) { box.dataset.empty = "This browser won't keep books here. Use Save to a file and Open a file instead."; return; }
+  recs.sort((a, b) => b.savedAt - a.savedAt);
+  for (const r of recs) box.append(bookCard(r, () => openBook(r.book, r.title), () => ask({
+    title: "Delete “" + r.title + "”?", body: "It will be gone from My books. Books saved to files are not affected.",
+    yes: "Delete it", no: "Keep it", onYes: async () => { try { await shelf.del(r.id); } catch (e) {} renderShelf(); },
+  })));
+}
+async function renderExamples() {
+  const box = $("examples"); box.innerHTML = "";
+  for (const ex of EXAMPLES) {
+    const b = ex.make();
+    box.append(bookCard({ title: ex.name, thumb: await coverThumb(b) }, () => { const nb = ex.make(); nb.paper = state.paper; nb.pages[7].text = nb.pages[7].text === stepsText("a4") ? stepsText(state.paper) : nb.pages[7].text; openBook(nb, ex.name); }));
+  }
+}
+$("btnBooks").onclick = () => { openModal("booksModal"); renderShelf(); renderExamples(); };
+$("booksClose").onclick = () => closeModal("booksModal");
+$("btnSaveBook").onclick = saveToShelf;
+$("shelfSave").onclick = saveToShelf;
+$("fileOpen").onclick = () => {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = () => { if (inp.files[0]) openBookFile(inp.files[0]); };
+  inp.click();
+};
+$("fileSave").onclick = async () => {
+  const b = bookCopy();
+  const data = JSON.stringify({ app: "tiny-book-press", v: 1, savedAt: new Date().toISOString(), book: b });
+  const name = fileBase().replace(/-(a4|letter)$/, "") + ".book.json";
+  const blob = new Blob([data], { type: "application/json" });
+  if (downloadsCap) {
+    try { await downloadsCap.save({ filename: name, data: blob }); state.unsaved = false; save(); toast("Saved " + name); }
+    catch (e) { toast(e && e.code === "declined" ? "Save cancelled" : "Saving files isn't available here. Use Save this book instead."); }
+  } else if (!IN_CLAUDE) {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    state.unsaved = false; save();
+  } else toast("Saving files isn't available here. Use Save this book instead.");
+};
+
+// ---------- talking instead of typing ----------
+const Recognizer = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let rec = null;
+function listen(field, btn) {
+  if (rec) { rec.stop(); return; }
+  const r = new Recognizer();
+  rec = r;
+  r.lang = navigator.language || "en-US"; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+  // Words go where the cursor is, replacing anything selected.
+  const a = field.selectionStart != null ? field.selectionStart : field.value.length, z = field.selectionEnd != null ? field.selectionEnd : a;
+  const before = field.value.slice(0, a), after = field.value.slice(z), gap = before && !/\s$/.test(before) ? " " : "";
+  r.onresult = (e) => {
+    let said = "";
+    for (let i = 0; i < e.results.length; i++) said += e.results[i][0] ? e.results[i][0].transcript : "";
+    said = said.replace(/\s+/g, " ").trim();
+    field.value = before + (said ? gap + said : "") + after;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  r.onerror = (e) => {
+    const err = (e && e.error) || "";
+    if (err === "not-allowed" || err === "service-not-allowed") toast(IN_CLAUDE ? "The microphone isn't allowed on claude.ai. It works at toontalk.github.io/tiny-book-press." : "The microphone isn't allowed. Allow it in your browser's site settings.");
+    else if (err === "no-speech") toast("I didn't hear anything. Press the microphone and try again.");
+    else if (err === "network") toast("Talking needs an internet connection in this browser.");
+    else if (err !== "aborted") toast("The microphone didn't work this time.");
+  };
+  r.onend = () => { rec = null; btn.classList.remove("on"); btn.setAttribute("aria-pressed", "false"); field.focus(); };
+  btn.classList.add("on"); btn.setAttribute("aria-pressed", "true");
+  try { r.start(); } catch (e) { rec = null; btn.classList.remove("on"); }
+}
+if (Recognizer) for (const slot of document.querySelectorAll("[data-mic-for]")) {
+  const field = $(slot.dataset.micFor);
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "mic"; b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+  b.title = "Talk instead of typing"; b.setAttribute("aria-label", "Talk instead of typing"); b.setAttribute("aria-pressed", "false");
+  b.addEventListener("mousedown", (e) => e.preventDefault());   // the box keeps its cursor and selection
+  b.onclick = () => listen(field, b);
+  slot.replaceWith(b);
+}
+
 // ---------- boot ----------
 syncOptions(); syncEditor(); updateAiButton(); drawPreview();
+shelf.get("current").then((c) => {
+  const b = normalizeBook(c);
+  if (b && b.t > (state.t || 0)) { state = b; syncOptions(); syncEditor(); drawPreview(); }
+}, () => {}).then(tidyArt);
 fontsReady.then(drawPreview);
 if (document.fonts) document.fonts.ready.then(drawPreview);
 </script>
